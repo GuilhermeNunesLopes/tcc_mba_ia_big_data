@@ -1,0 +1,3 @@
+[submodule "logpai"]
+	path = logpai
+	url = https://github.com/logpai/loghub.git
