@@ -117,3 +117,6 @@ Thumbs.db
 
 #Cache
 *.cache
+
+#Logs
+logs_hugging/
