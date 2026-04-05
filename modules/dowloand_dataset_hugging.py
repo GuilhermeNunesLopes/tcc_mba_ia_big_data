@@ -1,8 +1,8 @@
 import os
 
 from huggingface_hub import hf_hub_download, login
-import lzma
-import shutil
+#import lzma
+#import shutil
 
 #Define the repository ID and filename on Hugging Face
 def download_and_decompress(repo_id, filename, local_dir="logs_hugging"):
