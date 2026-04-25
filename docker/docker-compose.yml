@@ -1,53 +1,121 @@
 version: '3.8'
 
 services:
-  # --- SUA APLICAÇÃO ---
+
+  # O Coletor Automático
+  logspout:
+    image: gliderlabs/logspout:latest
+    container_name: logspout
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: syslog://fluentd:5140
+    depends_on:
+      - fluentd
+    networks:
+      rede-caos:
+        aliases:
+          - logspout
+    restart: always
+
+  fluentd:
+    image: fluent/fluentd:v1.16-1
+    container_name: fluentd
+    user: root
+    volumes:
+      - ./fluent.conf:/fluentd/etc/fluent.conf
+      - ./meus_logs:/fluentd/log
+    ports:
+      - "24224:24224"       # Forward
+      - "5140:5140/udp"     # Syslog (Logspout)
+      - "8888:8888"         # HTTP (Testes manuais)
+    networks:
+      rede-caos:
+        aliases:
+          - fluentd
+    restart: always
+
+  #BANCO EM MEMORIA
   redis:
     image: "redis:alpine"
+    container_name: redis
+    command: >
+      sh -c "(while true; do 
+                sleep 10; 
+                redis-cli LPUSH tarefas 'Carga de dados de teste para o TCC'; 
+                redis-cli LPUSH tarefas 'Realizando levantamento de informações para o TCC'; 
+              done) & 
+              redis-server"
+    hostname: redis
     networks:
-      - rede-caos
-
+      rede-caos:
+        aliases:
+          - redis
+    restart: always
+  #API PYTHON
   api:
-    build: ./api
+    build: 
+      context: api
+    container_name: api
+    hostname: api
+    environment:
+      - REDIS_HOST=redis
+      - PYTHONUNBUFFERED=1
+    networks:
+      rede-caos:
+        aliases:
+          - api
+    depends_on:
+      - redis
+    restart: always
+  #BALANCEADOR DE CARGA
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "5000:80"
     networks:
       - rede-caos
-
+    depends_on:
+      - api
+  #WORKER PYTHON SIMULANDO PROCESSAMENTO ASSINCRONO
   worker:
-    build: ./worker
+    build: 
+      context: worker
+    container_name: worker
+    environment:
+      - REDIS_HOST=redis
+      - PYTHONUNBUFFERED=1
     networks:
       - rede-caos
-
-  # --- CHAOS MESH: O MOTOR (Chaosd) ---
-  chaosd:
-    image: chaos-mesh/chaosd:latest
+    depends_on:
+      - redis
+      - fluentd
+  
+  #FERRAMENTA DE CAOS      
+  pumba:
+    image: gaiaadm/pumba:latest
+    container_name: pumba
     privileged: true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /sys:/sys
-      - /proc:/proc
+    # Exemplo: Pausar containers que começam com "api" por 10s a cada 1m
+    # --interval 1m: frequência do ataque
+    # pause: o tipo de ataque
+    # --duration 10s: quanto tempo o container fica pausado
+    command: 
+      --interval 1m pause --duration 10s re2:^api
+      netem --duration 30s delay --time 3000 re2:^api
+      --interval 2m kill --signal SIGKILL api
+      --interval 1m kill --signal SIGKILL worker
+      netem --duration 30s delay --time 3000 re2:^worker
     networks:
       - rede-caos
-
-  # --- CHAOS MESH: O PAINEL (Dashboard) ---
-  chaos-dashboard:
-    image: chaos-mesh/chaos-dashboard:latest
-    ports:
-      - "2333:2333"
-    environment:
-      - CLEAN_SYNC_PERIOD=5s
-      - DATABASE_DATASOURCE=/data/chaos-mesh.db
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./chaos-data:/data
-    networks:
-      - rede-caos
-    # O dashboard precisa saber como falar com o Docker
-    command: >
-      --host=0.0.0.0
-      --port=2333
-      --persistence-driver=sqlite3
-      --root-password=admin
-
+    restart: always
+  
 networks:
   rede-caos:
+    name: rede-caos # Força o nome da rede para não ter prefixos
     driver: bridge
+

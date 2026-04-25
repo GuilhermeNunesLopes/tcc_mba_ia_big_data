@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  redis:
+    image: "redis:alpine"
+    container_name: redis
+    command: 
+     - ["redis-server", "--protected-mode", "no"] # Desativa o modo protegido
+     - ["sleep", "10"] # Espera 10 segundos
+     - ["redis-cli", "LPUSH", "tarefas", "Carga de dados de teste para o TCC"]
+     - ["sleep", "20"] # Espera 20 segundos
+     - ["redis-cli", "LPUSH", "tarefas", "Realizando levantamento de informações para o TCC"]
+
+    networks:
+      - rede-caos
+    restart: always
+
+  api:
+    build:
+      context: ./api # Garanta o ./ para o caminho ser relativo
+    environment:
+      - REDIS_HOST=redis
+      - PYTHONUNBUFFERED=1 
+    networks:
+      - rede-caos
+    links:
+      - redis
+    # Removido o deploy: replicas para evitar o erro ContainerConfig
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "5000:80"
+    depends_on:
+      - api
+    networks:
+      - rede-caos
+  
+  worker:
+    build:
+      context: ./worker
+    environment:
+      - REDIS_HOST=redis
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - redis
+    networks:
+      - rede-caos
+    restart: always
+
+  pumba:
+    image: gaiaadm/pumba:latest
+    container_name: pumba
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: pause
+    networks:
+      - rede-caos
+
+networks:
+  rede-caos:
+    driver: bridge
