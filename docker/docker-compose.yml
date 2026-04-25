@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # --- SUA APLICAÇÃO ---
+  redis:
+    image: "redis:alpine"
+    networks:
+      - rede-caos
+
+  api:
+    build: ./api
+    networks:
+      - rede-caos
+
+  worker:
+    build: ./worker
+    networks:
+      - rede-caos
+
+  # --- CHAOS MESH: O MOTOR (Chaosd) ---
+  chaosd:
+    image: chaos-mesh/chaosd:latest
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys:/sys
+      - /proc:/proc
+    networks:
+      - rede-caos
+
+  # --- CHAOS MESH: O PAINEL (Dashboard) ---
+  chaos-dashboard:
+    image: chaos-mesh/chaos-dashboard:latest
+    ports:
+      - "2333:2333"
+    environment:
+      - CLEAN_SYNC_PERIOD=5s
+      - DATABASE_DATASOURCE=/data/chaos-mesh.db
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./chaos-data:/data
+    networks:
+      - rede-caos
+    # O dashboard precisa saber como falar com o Docker
+    command: >
+      --host=0.0.0.0
+      --port=2333
+      --persistence-driver=sqlite3
+      --root-password=admin
+
+networks:
+  rede-caos:
+    driver: bridge
