@@ -46,17 +46,42 @@ Utilizar técnicas de **AIOps** para detectar anomalias sem a necessidade de ró
 *Este estudo visa conferir vantagem competitiva através da alta disponibilidade e resiliência de aplicações de ponta a ponta.*
 
 ## Como Rodar ? 
-1. Execute pip install -r requeriment.txt
-2. Faça o dowloand do Docker Compose (apt get install docker-compose / yum install docker-compose)
-3. Suba os containers da aplicação: docker-compose -f docker/docker-compose.yml up -d --build
-4. Caso precise recriar os containers: docker-compose up -d --build --force-recreate
+### Docker:
+1. Execute:
+```bash
+ pip install -r requeriment.txt
+ ```
+2. Faça o dowloand do Docker Compose:
+```bash
+apt get install docker-compose 
+yum install docker-compose
+```
+3. Suba os containers da aplicação:
+```bash
+docker-compose -f docker/docker-compose.yml up -d --build
+```
+4. Caso precise recriar os containers: 
+```bash
+docker-compose up -d --build --force-recreate
+```
+### Start anomaly detection script:
+1. Execute: 
+```bash
+python3 main.py
+```
+2. Informe o token do hungging-face
+3. Espere a execução.
 
-## Comandos do pumba
-1. docker exec pumba pumba kill --signal SIGKILL api
-2. docker exec pumba pumba netem --duration 30s delay --time 3000 api
-
+## Comandos do pumba para forçar erros / anomalias
+```bash
+docker exec pumba pumba kill --signal SIGKILL api
+```
+```bash
+docker exec pumba pumba netem --duration 30s delay --time 3000 api
+```
 ## Clean Up containers
 
 ### Para todos os containers e remove redes órfãs
+```bash
 cd docker ; docker-compose down --remove-orphans ; docker container prune -f; docker builder prune -f
-
+```

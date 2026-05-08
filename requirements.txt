@@ -4,3 +4,5 @@ scikit-learn>=0.24.0
 matplotlib>=3.3.0
 seaborn>=0.11.0
 jupyter>=1.0.0
+huggingface_hub
+tempfile

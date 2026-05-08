@@ -120,3 +120,8 @@ Thumbs.db
 
 #Logs
 logs_hugging/
+*.log
+
+~/.cache
+docker/meus_logs
+*.metadata
