@@ -1,42 +1,38 @@
 import pandas as pd
-from sklearn.ensemble import IsolationForest
 import numpy as np
+from sklearn.ensemble import IsolationForest
 
+def process_log_anomalies(df_original, X_tfidf, contamination=0.02):
+    """
+    Recebe os logs parseados e a matriz numérica para identificar anomalias.
+    Retorna o DataFrame original enriquecido com os scores do modelo.
+    """
+    # 1. Trabalhar em uma cópia para preservar os dados originais
+    df_result = df_original.copy()
+    
+    # 2. Check de consistência: essencial para evitar erros de índice no TCC
+    if len(df_result) != X_tfidf.shape[0]:
+        raise ValueError(f"Dimensões incompatíveis: Logs ({len(df_result)}) vs TF-IDF ({X_tfidf.shape[0]})")
 
-def detect_anomalies(df, contamination=0.05):
-    # Select only numeric features for anomaly detection
-    numeric_df = df.select_dtypes(include=[np.number])
+    # 3. Configuração do Modelo
+    # n_jobs=-1 utiliza todo o processamento disponível da sua máquina
+    model = IsolationForest(
+        contamination=contamination, 
+        random_state=42, 
+        n_jobs=-1
+    )
     
-    # Handle the case where there are no numeric features
-    if numeric_df.empty:
-        print("No numeric features found for anomaly detection.")
-        return pd.DataFrame()  # Return empty DataFrame if no numeric features
+    # 4. Treinamento e Predição
+    # O modelo olha apenas para a matriz TF-IDF (X_tfidf)
+    predictions = model.fit_predict(X_tfidf)
     
-    # Initialize Isolation Forest model
-    model = IsolationForest(contamination=contamination, random_state=42)
+    # 5. Extração de Scores de Decisão
+    # Quanto menor (mais negativo) o score, mais anômalo é o log
+    decision_scores = model.decision_function(X_tfidf)
     
-    # Fit the model and predict anomalies
-    df['anomaly'] = model.fit_predict(numeric_df)
+    # 6. Injeção de resultados no DataFrame
+    df_result['anomaly_label'] = predictions # 1 para normal, -1 para anomalia
+    df_result['is_anomaly'] = df_result['anomaly_label'].apply(lambda x: True if x == -1 else False)
+    df_result['anomaly_score'] = decision_scores
     
-    # Filter out the anomalies (where anomaly == -1)
-    anomalies = df[df['anomaly'] == -1]
-    
-    return anomalies.drop(columns=['anomaly'])
-
-def get_normal_logs(df, contamination=0.05):
-    # Seleciona apenas recursos numéricos (matriz TF-IDF)
-    numeric_df = df.select_dtypes(include=[np.number])
-    
-    if numeric_df.empty:
-        return pd.DataFrame()
-    
-    model = IsolationForest(contamination=contamination, random_state=42)
-    
-    # Treina e prediz
-    # 1 = Normal, -1 = Anomalia
-    df['normal'] = model.fit_predict(numeric_df)
-    
-    # Filtra apenas os normais
-    normal_logs = df[df['normal'] == 1]
-    
-    return normal_logs
+    return df_result

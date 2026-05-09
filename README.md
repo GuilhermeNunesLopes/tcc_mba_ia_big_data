@@ -58,7 +58,9 @@ yum install docker-compose
 ```
 3. Suba os containers da aplicação:
 ```bash
-docker-compose -f docker/docker-compose.yml up -d --build
+docker-compose -f docker/docker-compose.yml up -d --build 
+or 
+docker compose up -d --force-recreate
 ```
 4. Caso precise recriar os containers: 
 ```bash

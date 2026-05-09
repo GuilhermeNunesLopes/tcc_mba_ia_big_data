@@ -40,8 +40,8 @@ def automatic_parse(file):
 
     data = []
 
-    with open(file, 'r') as f:
-        for line in f:
+    with open(file, 'r',encoding='utf-8') as f:
+        for line in f.readlines():
             # Try matching each pattern in order
             m = re.match(pattern, line)
             # If pattern matches, extract date/time, level, source, and event
@@ -73,7 +73,7 @@ def automatic_parse(file):
                         m4 = re.search(pattern4, line)
                         date_time = m4.group(1)
                         source = m4.group(3)
-                        event = m4.group(4) + m4.group(5)
+                        event = m4.group(4) +" "+ m4.group(5)
                         level = ""
                         data.append({'Date': date_time, 'Level': level, 'Source': source, 'Event': event})
 

@@ -12,23 +12,33 @@ def clean_log_text(text):
 
 def tfidf_vectorize(df):
     if df.empty:
-        return pd.DataFrame(), None
-    # Combine all text data into a single string for each row
-    #df['combined'] = df['Date'] + ' ' + df['Level'] + ' ' + df['Source'] + ' ' + df['Event']
-    df['Event_Clean'] = df['Event'].apply(clean_log_text)
-    df['combined'] = df['Level'] + ' ' + df['Source'] + ' ' + df['Event']
-    # Initialize TfidfVectorizer
-    vectorizer = TfidfVectorizer(max_features=1000)  # Limit to top 1000 features
+        return pd.DataFrame()
     
-    # Fit and transform the combined text data
-    tfidf_matrix = vectorizer.fit_transform(df['combined'])
-    
+    # 1. Garantir que não existam NaNs (comum em logs mal parseados)
+    df = df.fillna("missing")
 
-    # Convert the TF-IDF matrix to a DataFrame
+    # 2. Aplicar a limpeza que você criou
+    df['Event_Clean'] = df['Event'].apply(clean_log_text)
+    
+    # 3. Combinar as colunas USANDO a versão limpa
+    # Note que adicionei o Source e Level porque eles são "âncoras" Fortes
+    df['combined'] = df['Level'].astype(str) + ' ' + \
+                     df['Source'].astype(str) + ' ' + \
+                     df['Event_Clean'].astype(str)
+
+    # 4. Configuração Estratégica do Vectorizer
+    vectorizer = TfidfVectorizer(
+        max_features=1000,
+        ngram_range=(1, 2), # <--- O SEGREDO: Pega palavras sozinhas e pares (ex: "connection" e "connection failed")
+        stop_words=None     # Em logs, palavras como "at" ou "on" podem ser importantes
+    )
+    
+    tfidf_matrix = vectorizer.fit_transform(df['combined'])
+
     tfidf_df = pd.DataFrame(
         tfidf_matrix.toarray(), 
         columns=vectorizer.get_feature_names_out(),
-        index=df.index
+        index=df.index # Mantém o índice original para o seu .loc[] funcionar no main
     )
     
     return tfidf_df

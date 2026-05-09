@@ -56,6 +56,8 @@ services:
     build: 
       context: api
     container_name: api
+    ports:
+      - "5001:5000"
     hostname: api
     environment:
       - REDIS_HOST=redis
@@ -94,25 +96,37 @@ services:
       - fluentd
   
   #FERRAMENTA DE CAOS      
-  pumba:
+    # --- CAOS NA API (Latência) ---
+  pumba-api:
     image: gaiaadm/pumba:latest
-    container_name: pumba
+    container_name: pumba-api
     privileged: true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    # Exemplo: Pausar containers que começam com "api" por 10s a cada 1m
-    # --interval 1m: frequência do ataque
-    # pause: o tipo de ataque
-    # --duration 10s: quanto tempo o container fica pausado
-    command: 
-      --interval 1m pause --duration 10s re2:^api
-      netem --duration 30s delay --time 3000 re2:^api
-      --interval 2m kill --signal SIGKILL api
-      --interval 1m kill --signal SIGKILL worker
-      netem --duration 30s delay --time 3000 re2:^worker
-    networks:
-      - rede-caos
+    # Comando direto ao binário, sem shell, sem 'run'
+    command: --log-level info --interval 1m netem --duration 15s --tc-image gaiadocker/iproute2 delay --time 3000ms re2:^api$
     restart: always
+
+  # --- CAOS NO REDIS (Morte súbita) ---
+  pumba-redis:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-redis
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --log-level info --interval 2m kill --signal SIGKILL re2:^redis$
+    restart: always
+
+  # --- CAOS NO WORKER (Perda de pacotes) ---
+  pumba-worker:
+    image: gaiaadm/pumba:latest
+    container_name: pumba-worker
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --log-level info --interval 90s netem --duration 20s --tc-image gaiadocker/iproute2 loss -p 20 re2:^worker$
+    restart: always
+
   
 networks:
   rede-caos:
