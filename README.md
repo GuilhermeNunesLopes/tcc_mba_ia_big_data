@@ -60,7 +60,7 @@ yum install docker-compose
 ```bash
 docker-compose -f docker/docker-compose.yml up -d --build 
 or 
-docker compose up -d --force-recreate
+docker compose docker/docker-compose.yml up -d --force-recreate
 ```
 4. Caso precise recriar os containers: 
 ```bash

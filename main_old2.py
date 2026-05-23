@@ -75,3 +75,11 @@ if __name__ == "__main__":
     visualizer.plot_anomaly_timeline(df_final, f"plots/timeline_{date}.png")
     
     print("Gráficos salvos na pasta /plots!")
+
+
+    df_results = pd.read_csv(output_name)
+    df_results
+    
+    graph_result = visualizer.graph_anomaly_network(df_final, output_path=f"anomaly_network_{date}.png")
+
+    graph_result.show()

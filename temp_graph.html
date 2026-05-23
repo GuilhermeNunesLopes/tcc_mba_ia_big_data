@@ -1,0 +1,163 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 450px;
+                 background-color: #222222;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#FF6B6B", "font": {"color": "white"}, "id": 0, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd34 ANOMALIA\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - delay egress traffic for specified containers; networks show variability so it is possible to add random variation; delay variation isn\u0027t purely random, so to emulate that there is a correlation\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 912"}, {"color": "#FF6B6B", "font": {"color": "white"}, "id": 1, "label": "2026-05-23T22:06:41+00:00...", "shape": "dot", "size": 100, "title": "\ud83d\udd34 ANOMALIA\n\nLog Completo:\n2026-05-23T22:06:41+00:00 docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - delay egress traffic for specified containers; networks show variability so it is possible to add random variation; delay variation isn\u0027t purely random, so to emulate that there is a correlation\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 368"}, {"color": "#FF6B6B", "font": {"color": "white"}, "id": 2, "label": "2026-05-09T21:03:33+00:00...", "shape": "dot", "size": 100, "title": "\ud83d\udd34 ANOMALIA\n\nLog Completo:\n2026-05-09T21:03:33+00:00 docker.syslog.user.info {\"message\":\"1 2026-05-09T21:03:33Z e4d22eeba3e2 pumba-api 0 - - delay egress traffic for specified containers; networks show variability so it is possible to add random variation; delay variation isn\u0027t purely random, so to emulate that there is a correlation\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 93"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 5, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e - - \u003c*\u003e\n\nOcorr\u00eancias: 29388"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 6, "label": "2026-05-23T22:06:41+00:00...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n2026-05-23T22:06:41+00:00 docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - \u003c*\u003e\n\nOcorr\u00eancias: 3311"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 7, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e 804b347caafd pumba-net-api 54907 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 1532"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 9, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e e4d22eeba3e2 pumba-api 0 - - --jitter value, -j value random delay variation (jitter); in milliseconds; example: 100ms \u00b1 10ms (default: 10)\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 1446"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 10, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e e4d22eeba3e2 pumba-api 0 - - Pumba netem delay [command options] containers (name, list of names, or RE2 regex if prefixed with \\\"re2:\\\"\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 1446"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 11, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e e4d22eeba3e2 pumba-api 0 - - delay egress traffic for specified containers; networks show variability so it is possible to add random variation; delay variation isn\u0027t purely random, so to emulate that there is a correlation\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 1446"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 12, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e e4d22eeba3e2 pumba-api 0 - - Pumba netem delay - delay egress traffic\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 1446"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 13, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e e4d22eeba3e2 pumba-api 0 - - --distribution value, -d value delay distribution, can be one of {\u003cempty\u003e | uniform | normal | pareto | paretonormal}\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 1446"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 16, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 1192"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 18, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - Pumba netem delay [command options] containers (name, list of names, or RE2 regex if prefixed with \\\"re2:\\\"\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 912"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 19, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - --distribution value, -d value delay distribution, can be one of {\u003cempty\u003e | uniform | normal | pareto | paretonormal}\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 912"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 20, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - Pumba netem delay - delay egress traffic\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 912"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 21, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - --jitter value, -j value random delay variation (jitter); in milliseconds; example: 100ms \u00b1 10ms (default: 10)\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 912"}, {"color": "#FF6B6B", "font": {"color": "white"}, "id": 3, "label": "2026-05-09T20:57:25+00:00...", "shape": "dot", "size": 25, "title": "\ud83d\udd34 ANOMALIA\n\nLog Completo:\n2026-05-09T20:57:25+00:00 docker.syslog.user.info {\"message\":\"1 2026-05-09T20:57:24Z 5fa25a72fb94 pumba-net-worker 55106 - - --podman-socket value Podman socket URI (auto-detected if empty; e.g. unix:///run/podman/podman.sock)\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 5"}, {"color": "#FF6B6B", "font": {"color": "white"}, "id": 4, "label": "2026-05-09T20:57:25+00:00...", "shape": "dot", "size": 19, "title": "\ud83d\udd34 ANOMALIA\n\nLog Completo:\n2026-05-09T20:57:25+00:00 docker.syslog.user.info {\"message\":\"1 \u003c*\u003e 5fa25a72fb94 pumba-net-worker 55106 - - --podman-socket value Podman socket URI (auto-detected if empty; e.g. unix:///run/podman/podman.sock)\",\"service_name\":\"logspout-capture\"}\n\nOcorr\u00eancias: 2"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 8, "label": "2026-05-23T22:06:41+00:00 \u003c*\u003e...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n2026-05-23T22:06:41+00:00 \u003c*\u003e {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 1471"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 14, "label": "2026-05-09T21:03:34+00:00 \u003c*\u003e...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n2026-05-09T21:03:34+00:00 \u003c*\u003e {\"message\":\"1 2026-05-09T21:03:34Z e4d22eeba3e2 pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 1363"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 15, "label": "2026-05-09T21:03:59+00:00 \u003c*\u003e...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n2026-05-09T21:03:59+00:00 \u003c*\u003e {\"message\":\"1 2026-05-09T21:03:59Z e4d22eeba3e2 pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 1301"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 22, "label": "2026-05-09T21:08:17+00:00 \u003c*\u003e...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n2026-05-09T21:08:17+00:00 \u003c*\u003e {\"message\":\"1 2026-05-09T21:08:17Z e4d22eeba3e2 pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 869"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 24, "label": "2026-05-09T21:05:16+00:00 \u003c*\u003e...", "shape": "dot", "size": 91, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n2026-05-09T21:05:16+00:00 \u003c*\u003e {\"message\":\"1 2026-05-09T21:05:16Z e4d22eeba3e2 pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e\n\nOcorr\u00eancias: 762"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 23, "label": "\u003c*\u003e docker.syslog.user.info...", "shape": "dot", "size": 92, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e docker.syslog.user.info {\"message\":\"1 \u003c*\u003e \u003c*\u003e \u003c*\u003e \u003c*\u003e - - \u003c*\u003e value client \u003c*\u003e for TLS authentication (default: \u003c*\u003e\n\nOcorr\u00eancias: 773"}, {"color": "#4D96FF", "font": {"color": "white"}, "id": 17, "label": "\u003c*\u003e \u003c*\u003e {\"message\":\"1 \u003c*\u003e...", "shape": "dot", "size": 100, "title": "\ud83d\udd35 NORMAL\n\nLog Completo:\n\u003c*\u003e \u003c*\u003e {\"message\":\"1 \u003c*\u003e cf1aed60bf8b pumba-api 0 - - \u003c*\u003e \u003c*\u003e \u003c*\u003e value \u003c*\u003e for flag -time: parse \u003c*\u003e\n\nOcorr\u00eancias: 1184"}]);
+                  edges = new vis.DataSet([{"from": 0, "title": "Similaridade: 88%", "to": 1, "width": 4.392885261214961}, {"from": 0, "title": "Similaridade: 73%", "to": 2, "width": 3.6359920245683703}, {"from": 0, "title": "Similaridade: 22%", "to": 5, "width": 1.0941833155459049}, {"from": 0, "title": "Similaridade: 14%", "to": 6, "width": 0.701782994794673}, {"from": 0, "title": "Similaridade: 12%", "to": 7, "width": 0.6045119087857865}, {"from": 0, "title": "Similaridade: 30%", "to": 9, "width": 1.4964272495664834}, {"from": 0, "title": "Similaridade: 20%", "to": 10, "width": 1.0028654901605705}, {"from": 0, "title": "Similaridade: 98%", "to": 11, "width": 4.887639945285084}, {"from": 0, "title": "Similaridade: 45%", "to": 12, "width": 2.2328771686155005}, {"from": 0, "title": "Similaridade: 17%", "to": 13, "width": 0.8662557794220449}, {"from": 0, "title": "Similaridade: 27%", "to": 16, "width": 1.356067226940167}, {"from": 0, "title": "Similaridade: 22%", "to": 18, "width": 1.121075044305883}, {"from": 0, "title": "Similaridade: 20%", "to": 19, "width": 0.9974728395355328}, {"from": 0, "title": "Similaridade: 48%", "to": 20, "width": 2.423954963625858}, {"from": 0, "title": "Similaridade: 32%", "to": 21, "width": 1.6135033507854815}, {"from": 1, "title": "Similaridade: 76%", "to": 2, "width": 3.7819959490452364}, {"from": 1, "title": "Similaridade: 14%", "to": 3, "width": 0.7168942483139696}, {"from": 1, "title": "Similaridade: 14%", "to": 4, "width": 0.6750536354672834}, {"from": 1, "title": "Similaridade: 19%", "to": 5, "width": 0.9613243519857848}, {"from": 1, "title": "Similaridade: 54%", "to": 6, "width": 2.716105571431347}, {"from": 1, "title": "Similaridade: 11%", "to": 7, "width": 0.5311102908668008}, {"from": 1, "title": "Similaridade: 50%", "to": 8, "width": 2.5080836447444677}, {"from": 1, "title": "Similaridade: 26%", "to": 9, "width": 1.3147266418202093}, {"from": 1, "title": "Similaridade: 18%", "to": 10, "width": 0.8810946061414975}, {"from": 1, "title": "Similaridade: 86%", "to": 11, "width": 4.294168295553669}, {"from": 1, "title": "Similaridade: 39%", "to": 12, "width": 1.9617546408228839}, {"from": 1, "title": "Similaridade: 15%", "to": 13, "width": 0.7610724491730758}, {"from": 1, "title": "Similaridade: 19%", "to": 14, "width": 0.9557234875646631}, {"from": 1, "title": "Similaridade: 19%", "to": 15, "width": 0.9557234875646631}, {"from": 1, "title": "Similaridade: 24%", "to": 16, "width": 1.1914095468884205}, {"from": 1, "title": "Similaridade: 20%", "to": 18, "width": 0.9849508077694447}, {"from": 1, "title": "Similaridade: 18%", "to": 19, "width": 0.8763567470515755}, {"from": 1, "title": "Similaridade: 43%", "to": 20, "width": 2.129631206712175}, {"from": 1, "title": "Similaridade: 28%", "to": 21, "width": 1.4175870177172987}, {"from": 1, "title": "Similaridade: 18%", "to": 22, "width": 0.8976689337172383}, {"from": 1, "title": "Similaridade: 23%", "to": 24, "width": 1.1320552318290227}, {"from": 2, "title": "Similaridade: 16%", "to": 3, "width": 0.8004668351108347}, {"from": 2, "title": "Similaridade: 14%", "to": 4, "width": 0.6799322696326809}, {"from": 2, "title": "Similaridade: 16%", "to": 5, "width": 0.8139801321859919}, {"from": 2, "title": "Similaridade: 29%", "to": 6, "width": 1.4683849666774929}, {"from": 2, "title": "Similaridade: 25%", "to": 8, "width": 1.2626961455961854}, {"from": 2, "title": "Similaridade: 24%", "to": 9, "width": 1.2003104526407915}, {"from": 2, "title": "Similaridade: 17%", "to": 10, "width": 0.8339853110438289}, {"from": 2, "title": "Similaridade: 74%", "to": 11, "width": 3.7195784317908585}, {"from": 2, "title": "Similaridade: 36%", "to": 12, "width": 1.8032181204670277}, {"from": 2, "title": "Similaridade: 15%", "to": 13, "width": 0.7420356920467106}, {"from": 2, "title": "Similaridade: 55%", "to": 14, "width": 2.7440161384313844}, {"from": 2, "title": "Similaridade: 55%", "to": 15, "width": 2.7440161384313844}, {"from": 2, "title": "Similaridade: 15%", "to": 16, "width": 0.747573169761083}, {"from": 2, "title": "Similaridade: 15%", "to": 18, "width": 0.7460473694377252}, {"from": 2, "title": "Similaridade: 13%", "to": 19, "width": 0.6444212627104837}, {"from": 2, "title": "Similaridade: 33%", "to": 20, "width": 1.6610723514440908}, {"from": 2, "title": "Similaridade: 22%", "to": 21, "width": 1.1132157044463218}, {"from": 2, "title": "Similaridade: 35%", "to": 22, "width": 1.7739603117314409}, {"from": 2, "title": "Similaridade: 44%", "to": 24, "width": 2.179061373289595}, {"from": 3, "title": "Similaridade: 96%", "to": 4, "width": 4.791150418910457}, {"from": 3, "title": "Similaridade: 13%", "to": 5, "width": 0.633094813125985}, {"from": 3, "title": "Similaridade: 22%", "to": 6, "width": 1.1006894366756736}, {"from": 3, "title": "Similaridade: 12%", "to": 7, "width": 0.59296083823017}, {"from": 3, "title": "Similaridade: 20%", "to": 8, "width": 1.014840137997814}, {"from": 3, "title": "Similaridade: 11%", "to": 12, "width": 0.5404373721055652}, {"from": 3, "title": "Similaridade: 19%", "to": 14, "width": 0.9295168064918533}, {"from": 3, "title": "Similaridade: 19%", "to": 15, "width": 0.9295168064918533}, {"from": 3, "title": "Similaridade: 13%", "to": 16, "width": 0.6425459790740886}, {"from": 3, "title": "Similaridade: 11%", "to": 20, "width": 0.5404373721055651}, {"from": 3, "title": "Similaridade: 17%", "to": 22, "width": 0.873054153646444}, {"from": 3, "title": "Similaridade: 23%", "to": 24, "width": 1.1718050126349218}, {"from": 4, "title": "Similaridade: 14%", "to": 5, "width": 0.7091456641864013}, {"from": 4, "title": "Similaridade: 20%", "to": 6, "width": 0.9973563234709157}, {"from": 4, "title": "Similaridade: 13%", "to": 7, "width": 0.664190574215905}, {"from": 4, "title": "Similaridade: 18%", "to": 8, "width": 0.8928220955299448}, {"from": 4, "title": "Similaridade: 12%", "to": 12, "width": 0.6053576987949328}, {"from": 4, "title": "Similaridade: 10%", "to": 13, "width": 0.5051395824240035}, {"from": 4, "title": "Similaridade: 15%", "to": 14, "width": 0.7285201987865886}, {"from": 4, "title": "Similaridade: 15%", "to": 15, "width": 0.7285201987865886}, {"from": 4, "title": "Similaridade: 14%", "to": 16, "width": 0.7197321564694615}, {"from": 4, "title": "Similaridade: 10%", "to": 19, "width": 0.5051395824240035}, {"from": 4, "title": "Similaridade: 12%", "to": 20, "width": 0.6053576987949328}, {"from": 4, "title": "Similaridade: 14%", "to": 22, "width": 0.6842669020331895}, {"from": 4, "title": "Similaridade: 17%", "to": 24, "width": 0.857879429370375}, {"from": 5, "title": "Similaridade: 35%", "to": 6, "width": 1.7696741284602968}, {"from": 5, "title": "Similaridade: 41%", "to": 7, "width": 2.057058073392258}, {"from": 5, "title": "Similaridade: 23%", "to": 9, "width": 1.140109062139728}, {"from": 5, "title": "Similaridade: 23%", "to": 10, "width": 1.151146839613908}, {"from": 5, "title": "Similaridade: 22%", "to": 11, "width": 1.0941833155459049}, {"from": 5, "title": "Similaridade: 37%", "to": 12, "width": 1.8607514547950776}, {"from": 5, "title": "Similaridade: 26%", "to": 13, "width": 1.2778163757168648}, {"from": 5, "title": "Similaridade: 68%", "to": 16, "width": 3.419571442695105}, {"from": 5, "title": "Similaridade: 23%", "to": 18, "width": 1.151146839613908}, {"from": 5, "title": "Similaridade: 26%", "to": 19, "width": 1.2778163757168648}, {"from": 5, "title": "Similaridade: 37%", "to": 20, "width": 1.8607514547950774}, {"from": 5, "title": "Similaridade: 23%", "to": 21, "width": 1.140109062139728}, {"from": 5, "title": "Similaridade: 36%", "to": 23, "width": 1.8119713360735898}, {"from": 6, "title": "Similaridade: 20%", "to": 7, "width": 0.9777055362890659}, {"from": 6, "title": "Similaridade: 92%", "to": 8, "width": 4.6170584662192375}, {"from": 6, "title": "Similaridade: 11%", "to": 9, "width": 0.5418859858385667}, {"from": 6, "title": "Similaridade: 12%", "to": 10, "width": 0.6115814024190636}, {"from": 6, "title": "Similaridade: 10%", "to": 11, "width": 0.5200577947516021}, {"from": 6, "title": "Similaridade: 20%", "to": 12, "width": 0.9885802098527842}, {"from": 6, "title": "Similaridade: 12%", "to": 13, "width": 0.6073373236560904}, {"from": 6, "title": "Similaridade: 35%", "to": 14, "width": 1.7593636595300144}, {"from": 6, "title": "Similaridade: 35%", "to": 15, "width": 1.7593636595300144}, {"from": 6, "title": "Similaridade: 44%", "to": 16, "width": 2.193231293032115}, {"from": 6, "title": "Similaridade: 13%", "to": 17, "width": 0.6607099737429872}, {"from": 6, "title": "Similaridade: 16%", "to": 18, "width": 0.8027672729543102}, {"from": 6, "title": "Similaridade: 16%", "to": 19, "width": 0.8195608452509205}, {"from": 6, "title": "Similaridade: 26%", "to": 20, "width": 1.2976193128520515}, {"from": 6, "title": "Similaridade: 15%", "to": 21, "width": 0.7312386696572661}, {"from": 6, "title": "Similaridade: 33%", "to": 22, "width": 1.6524927144937531}, {"from": 6, "title": "Similaridade: 13%", "to": 23, "width": 0.6413197589922138}, {"from": 6, "title": "Similaridade: 42%", "to": 24, "width": 2.0839676552639426}, {"from": 7, "title": "Similaridade: 13%", "to": 9, "width": 0.6298848607778329}, {"from": 7, "title": "Similaridade: 14%", "to": 10, "width": 0.7108983745370492}, {"from": 7, "title": "Similaridade: 12%", "to": 11, "width": 0.6045119087857865}, {"from": 7, "title": "Similaridade: 23%", "to": 12, "width": 1.1491194164898517}, {"from": 7, "title": "Similaridade: 14%", "to": 13, "width": 0.705965084083692}, {"from": 7, "title": "Similaridade: 38%", "to": 16, "width": 1.8892370507602196}, {"from": 7, "title": "Similaridade: 14%", "to": 18, "width": 0.7108983745370492}, {"from": 7, "title": "Similaridade: 14%", "to": 19, "width": 0.705965084083692}, {"from": 7, "title": "Similaridade: 23%", "to": 20, "width": 1.1491194164898513}, {"from": 7, "title": "Similaridade: 13%", "to": 21, "width": 0.6298848607778329}, {"from": 7, "title": "Similaridade: 15%", "to": 23, "width": 0.7454660531251072}, {"from": 8, "title": "Similaridade: 11%", "to": 13, "width": 0.5292787751987508}, {"from": 8, "title": "Similaridade: 39%", "to": 14, "width": 1.9621457319528437}, {"from": 8, "title": "Similaridade: 39%", "to": 15, "width": 1.9621457319528437}, {"from": 8, "title": "Similaridade: 32%", "to": 16, "width": 1.5961726543811254}, {"from": 8, "title": "Similaridade: 18%", "to": 17, "width": 0.9194068689234685}, {"from": 8, "title": "Similaridade: 15%", "to": 19, "width": 0.7490453035291809}, {"from": 8, "title": "Similaridade: 15%", "to": 20, "width": 0.7542305475299083}, {"from": 8, "title": "Similaridade: 13%", "to": 21, "width": 0.6683224246736745}, {"from": 8, "title": "Similaridade: 37%", "to": 22, "width": 1.8429569743945091}, {"from": 8, "title": "Similaridade: 46%", "to": 24, "width": 2.2940125172675323}, {"from": 9, "title": "Similaridade: 18%", "to": 10, "width": 0.8757894217607487}, {"from": 9, "title": "Similaridade: 32%", "to": 11, "width": 1.6135033507854817}, {"from": 9, "title": "Similaridade: 32%", "to": 12, "width": 1.580598539057433}, {"from": 9, "title": "Similaridade: 26%", "to": 13, "width": 1.3058001007507483}, {"from": 9, "title": "Similaridade: 31%", "to": 16, "width": 1.5551956748858244}, {"from": 9, "title": "Similaridade: 10%", "to": 17, "width": 0.5075755028351404}, {"from": 9, "title": "Similaridade: 15%", "to": 18, "width": 0.7526183022620676}, {"from": 9, "title": "Similaridade: 23%", "to": 19, "width": 1.1690755161064628}, {"from": 9, "title": "Similaridade: 28%", "to": 20, "width": 1.3815007073049004}, {"from": 9, "title": "Similaridade: 98%", "to": 21, "width": 4.878009907422897}, {"from": 9, "title": "Similaridade: 23%", "to": 23, "width": 1.1444839913030527}, {"from": 10, "title": "Similaridade: 22%", "to": 11, "width": 1.1210750443058832}, {"from": 10, "title": "Similaridade: 43%", "to": 12, "width": 2.1389850906040446}, {"from": 10, "title": "Similaridade: 20%", "to": 13, "width": 0.9815710636535012}, {"from": 10, "title": "Similaridade: 24%", "to": 16, "width": 1.1817691545365059}, {"from": 10, "title": "Similaridade: 98%", "to": 18, "width": 4.875636419662774}, {"from": 10, "title": "Similaridade: 17%", "to": 19, "width": 0.8435228025376674}, {"from": 10, "title": "Similaridade: 39%", "to": 20, "width": 1.9379597260956969}, {"from": 10, "title": "Similaridade: 15%", "to": 21, "width": 0.7526183022620676}, {"from": 11, "title": "Similaridade: 48%", "to": 12, "width": 2.4239549636258584}, {"from": 11, "title": "Similaridade: 20%", "to": 13, "width": 0.9974728395355328}, {"from": 11, "title": "Similaridade: 20%", "to": 16, "width": 1.0049165294803988}, {"from": 11, "title": "Similaridade: 20%", "to": 18, "width": 1.0028654901605705}, {"from": 11, "title": "Similaridade: 17%", "to": 19, "width": 0.8662557794220449}, {"from": 11, "title": "Similaridade: 45%", "to": 20, "width": 2.2328771686155}, {"from": 11, "title": "Similaridade: 30%", "to": 21, "width": 1.4964272495664834}, {"from": 12, "title": "Similaridade: 35%", "to": 13, "width": 1.7715100806682393}, {"from": 12, "title": "Similaridade: 38%", "to": 16, "width": 1.9102503676014824}, {"from": 12, "title": "Similaridade: 39%", "to": 18, "width": 1.937959726095697}, {"from": 12, "title": "Similaridade: 31%", "to": 19, "width": 1.5483643499382023}, {"from": 12, "title": "Similaridade: 94%", "to": 20, "width": 4.675056016671968}, {"from": 12, "title": "Similaridade: 28%", "to": 21, "width": 1.3815007073049008}, {"from": 12, "title": "Similaridade: 13%", "to": 23, "width": 0.6743256599291826}, {"from": 13, "title": "Similaridade: 35%", "to": 16, "width": 1.7430389484699984}, {"from": 13, "title": "Similaridade: 11%", "to": 17, "width": 0.5688826718193172}, {"from": 13, "title": "Similaridade: 17%", "to": 18, "width": 0.8435228025376674}, {"from": 13, "title": "Similaridade: 97%", "to": 19, "width": 4.846761227479707}, {"from": 13, "title": "Similaridade: 31%", "to": 20, "width": 1.5483643499382023}, {"from": 13, "title": "Similaridade: 23%", "to": 21, "width": 1.1690755161064628}, {"from": 13, "title": "Similaridade: 15%", "to": 23, "width": 0.764825932224159}, {"from": 14, "title": "Similaridade: 81%", "to": 15, "width": 4.049119775111568}, {"from": 14, "title": "Similaridade: 13%", "to": 16, "width": 0.6460426125022953}, {"from": 14, "title": "Similaridade: 53%", "to": 22, "width": 2.644003220824593}, {"from": 14, "title": "Similaridade: 65%", "to": 24, "width": 3.2312285547375326}, {"from": 15, "title": "Similaridade: 13%", "to": 16, "width": 0.6460426125022953}, {"from": 15, "title": "Similaridade: 53%", "to": 22, "width": 2.644003220824593}, {"from": 15, "title": "Similaridade: 65%", "to": 24, "width": 3.2312285547375326}, {"from": 16, "title": "Similaridade: 34%", "to": 17, "width": 1.7156081196875643}, {"from": 16, "title": "Similaridade: 31%", "to": 18, "width": 1.5512008666325336}, {"from": 16, "title": "Similaridade: 43%", "to": 19, "width": 2.1531220718217963}, {"from": 16, "title": "Similaridade: 50%", "to": 20, "width": 2.507411886943949}, {"from": 16, "title": "Similaridade: 38%", "to": 21, "width": 1.921085089084054}, {"from": 16, "title": "Similaridade: 12%", "to": 22, "width": 0.6067993416993395}, {"from": 16, "title": "Similaridade: 33%", "to": 23, "width": 1.6429939889520289}, {"from": 16, "title": "Similaridade: 13%", "to": 24, "width": 0.6263525033284716}, {"from": 17, "title": "Similaridade: 10%", "to": 18, "width": 0.5015158962540827}, {"from": 17, "title": "Similaridade: 16%", "to": 19, "width": 0.8050934848565933}, {"from": 17, "title": "Similaridade: 16%", "to": 20, "width": 0.8106667207379326}, {"from": 17, "title": "Similaridade: 14%", "to": 21, "width": 0.7183304232110111}, {"from": 18, "title": "Similaridade: 20%", "to": 19, "width": 0.9815710636535013}, {"from": 18, "title": "Similaridade: 43%", "to": 20, "width": 2.1389850906040446}, {"from": 18, "title": "Similaridade: 18%", "to": 21, "width": 0.8757894217607487}, {"from": 19, "title": "Similaridade: 35%", "to": 20, "width": 1.7715100806682393}, {"from": 19, "title": "Similaridade: 26%", "to": 21, "width": 1.3058001007507483}, {"from": 19, "title": "Similaridade: 15%", "to": 23, "width": 0.764825932224159}, {"from": 20, "title": "Similaridade: 32%", "to": 21, "width": 1.5805985390574326}, {"from": 20, "title": "Similaridade: 13%", "to": 23, "width": 0.6743256599291825}, {"from": 21, "title": "Similaridade: 23%", "to": 23, "width": 1.1444839913030527}, {"from": 22, "title": "Similaridade: 61%", "to": 24, "width": 3.0349505155712575}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "repulsion": {
+            "centralGravity": 0.05,
+            "damping": 0.09,
+            "nodeDistance": 300,
+            "springConstant": 0.05,
+            "springLength": 250
+        },
+        "solver": "repulsion",
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
