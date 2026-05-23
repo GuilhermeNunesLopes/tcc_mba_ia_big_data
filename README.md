@@ -87,3 +87,7 @@ docker exec pumba pumba netem --duration 30s delay --time 3000 api
 ```bash
 cd docker ; docker-compose down --remove-orphans ; docker container prune -f; docker builder prune -f
 ```
+## How to run the project 
+```bash
+streamlit run main.py
+```
