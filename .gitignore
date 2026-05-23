@@ -125,3 +125,4 @@ logs_hugging/
 ~/.cache
 docker/meus_logs
 *.metadata
+plots/
