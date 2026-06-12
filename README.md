@@ -56,6 +56,7 @@ Utilizar técnicas de **AIOps** para detectar anomalias sem a necessidade de ró
 apt get install docker-compose 
 yum install docker-compose
 ```
+## RODANDO VIA DOCKER APENAS
 3. Suba os containers da aplicação:
 ```bash
 docker-compose -f docker/docker-compose.yml up -d --build 
@@ -73,7 +74,11 @@ python3 main.py
 ```
 2. Informe o token do hungging-face
 3. Espere a execução.
-
+## Execução do docker controlada
+```bash
+docker compose -f docker/docker-compose.yml up -d ; sleep 10m ; docker compose -f docker/docker-co
+mpose.yml down
+```
 ## Comandos do pumba para forçar erros / anomalias
 ```bash
 docker exec pumba pumba kill --signal SIGKILL api
@@ -90,4 +95,21 @@ cd docker ; docker-compose down --remove-orphans ; docker container prune -f; do
 ## How to run the project 
 ```bash
 streamlit run main.py
+```
+
+## RODANDO VIA MINIKUBE
+### Como iniciar o projeto
+```bash
+streamlit run main.py
+
+cd minikube
+
+./start-minikube.sh
+```
+### Como destruir tudo ?
+
+```bash
+cd minikube
+
+./delete-minikube.sh
 ```

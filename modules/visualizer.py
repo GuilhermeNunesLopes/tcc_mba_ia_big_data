@@ -2,6 +2,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import networkx as nx
 from pyvis.network import Network
+import plotly.figure_factory as ff
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import textwrap
@@ -37,7 +38,7 @@ def plot_anomaly_distribution_plotly(df):
         x='anomaly_score', 
         color='is_anomaly', 
         barmode='overlay',
-        color_discrete_map={False: 'blue', True: 'red'},
+        color_discrete_map={False: '#4D96FF', True: '#FF6B6B'}, # Mantendo o padrão de cores
         title="Distribuição dos Scores de Anomalia"
     )
     return fig
@@ -52,12 +53,10 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
 
     coluna_texto = 'Template' if 'Template' in df.columns else 'Event'
 
-    # 1. Separar Normais e Anômalos 
-    # Pegamos os Top 20 de cada para não travar o navegador com milhares de bolinhas
-    top_anomalias = df[df['is_anomaly'] == True][coluna_texto].value_counts().head(20)
-    top_normais = df[df['is_anomaly'] == False][coluna_texto].value_counts().head(20)
+    # 1. Mais bolinhas: Aumentamos de 20 para 45 de cada tipo (Total de até 90 bolinhas na tela)
+    top_anomalias = df[df['is_anomaly'] == True][coluna_texto].value_counts().head(100)
+    top_normais = df[df['is_anomaly'] == False][coluna_texto].value_counts().head(100)
 
-    # Cria uma lista unificada com as informações de cada nó
     nodes_info = []
     
     for texto, freq in top_anomalias.items():
@@ -72,18 +71,19 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
     linhas_unicas = [n['texto'] for n in nodes_info]
     G = nx.Graph()
 
-    # 2. Criar os Nós com Cores Diferentes
+    # 2. Criar os Nós com Tamanho Controlado
     for i, info in enumerate(nodes_info):
         label_curto = textwrap.shorten(info['texto'], width=40, placeholder="...")
         
-        # Define a cor com base no status (Vermelho para anomalia, Azul para normal)
-        cor = '#FF6B6B' if info['is_anomaly'] else '#4D96FF' 
-        status_txt = "🔴 ANOMALIA" if info['is_anomaly'] else "🔵 NORMAL"
+        cor = '#FF6B6B' if info['is_anomaly'] else "#1BBB06" 
+        status_txt = "🔴 ANOMALIA" if info['is_anomaly'] else "🟢 NORMAL"
         
-        # Atenuamos o crescimento do tamanho da bolinha porque logs normais podem ter milhares de ocorrências
-        tamanho = 15 + (info['freq'] * 0.1) if not info['is_anomaly'] else 15 + (info['freq'] * 2)
-        # Limita o tamanho máximo para a bolinha não engolir a tela
-        tamanho = min(tamanho, 100)
+        # Crescimento suavizado (usando raiz quadrada **) para não ficar gigante
+        # Tamanho base é 10.
+        tamanho_calculado = 10 + (info['freq'] ** 0.5) * 1.5 
+        
+        # Limitamos o tamanho máximo da bolinha em 35 pixels (antes estava 300)
+        tamanho = min(tamanho_calculado, 25)
 
         G.add_node(
             i, 
@@ -93,9 +93,8 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
             color=cor 
         )
 
-    # 3. Criar as conexões matemáticas (Se houver 2 ou mais nós)
+    # 3. Criar as conexões matemáticas (Mais visíveis)
     if len(linhas_unicas) >= 2:
-        # try/except previne um erro do TF-IDF caso os logs tenham apenas palavras muito curtas/estranhas
         try:
             vectorizer = TfidfVectorizer(stop_words='english')
             tfidf_matrix = vectorizer.fit_transform(linhas_unicas)
@@ -105,18 +104,41 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
                 for j in range(i + 1, len(linhas_unicas)):
                     sim = matriz_similaridade[i, j]
                     
-                    # Conecta os logs que tiverem mais de 10% de semelhança matemática
-                    if sim > 0.10:
-                        G.add_edge(i, j, weight=sim * 5, title=f"Similaridade: {sim:.0%}")
+                    # Reduzimos para 5% de similaridade para criar MAIS conexões
+                    if sim > 0.05:
+                        # Multiplicador aumentado (de 5 para 8) para deixar as linhas mais gordinhas e visíveis
+                        G.add_edge(i, j, weight=sim * 8, title=f"Similaridade: {sim:.0%}")
         except ValueError:
             pass
 
-    # 4. Domando a Física do PyVis
+    # 4. Domando a Física do PyVis para o novo formato
     net = Network(height='450px', width='100%', bgcolor='#222222', font_color='white')
     net.from_nx(G)
     
-    # Física mais afastada (node_distance) para acomodar os dois grupos
-    net.repulsion(node_distance=300, central_gravity=0.05, spring_length=250)
+    # Física aproximada: node_distance menor agrupa melhor as famílias de logs
+    # damping mais alto faz elas pararem de "dançar" na tela mais rápido
+    net.repulsion(node_distance=150, central_gravity=0.08, spring_length=150, damping=0.09)
     net.save_graph(output_path)
     
     return output_path
+
+def plot_confusion_matrix_plotly(cm):
+    """Gera uma Matriz de Confusão interativa e elegante."""
+    # Inverte a matriz apenas para o visual ficar no padrão acadêmico
+    z = cm[::-1] 
+    x = ['Predito: Normal', 'Predito: Anomalia']
+    y = ['Real: Anomalia', 'Real: Normal']
+    
+    # Criar o Heatmap (Mapa de calor)
+    fig = ff.create_annotated_heatmap(
+        z, x=x, y=y, 
+        colorscale='Blues', 
+        showscale=True
+    )
+    
+    fig.update_layout(
+        title_text='Matriz de Confusão', 
+        title_x=0.5,
+        margin=dict(t=50, l=20, r=20, b=20)
+    )
+    return fig

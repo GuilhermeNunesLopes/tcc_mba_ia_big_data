@@ -34,7 +34,7 @@ services:
           - fluentd
     restart: always
 
-  #BANCO EM MEMORIA
+  # BANCO EM MEMORIA
   redis:
     image: "redis:alpine"
     container_name: redis
@@ -51,7 +51,8 @@ services:
         aliases:
           - redis
     restart: always
-  #API PYTHON
+
+  # API PYTHON
   api:
     build: 
       context: api
@@ -69,7 +70,8 @@ services:
     depends_on:
       - redis
     restart: always
-  #BALANCEADOR DE CARGA
+
+  # BALANCEADOR DE CARGA
   nginx:
     image: nginx:alpine
     container_name: nginx
@@ -81,7 +83,8 @@ services:
       - rede-caos
     depends_on:
       - api
-  #WORKER PYTHON SIMULANDO PROCESSAMENTO ASSINCRONO
+
+  # WORKER PYTHON SIMULANDO PROCESSAMENTO ASSINCRONO
   worker:
     build: 
       context: worker
@@ -94,42 +97,22 @@ services:
     depends_on:
       - redis
       - fluentd
-  
-  #FERRAMENTA DE CAOS      
-    # --- CAOS NA API (Latência) ---
-  pumba-api:
-    image: gaiaadm/pumba:latest
-    container_name: pumba-api
-    privileged: true
+
+  # --- GERADOR DE CAOS ALEATÓRIO CENTRALIZADO ---
+  caos-aleatorio:
+    image: docker:cli
+    container_name: caos-aleatorio
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    # Comando direto ao binário, sem shell, sem 'run'
-    command: --log-level info --interval 1m netem --duration 15s --tc-image gaiadocker/iproute2 delay --time 3000ms re2:^api$
+      - ./chaos.sh:/chaos.sh:ro
+    command: sh /chaos.sh
+    depends_on:
+      - api
+      - redis
+      - worker
     restart: always
 
-  # --- CAOS NO REDIS (Morte súbita) ---
-  pumba-redis:
-    image: gaiaadm/pumba:latest
-    container_name: pumba-redis
-    privileged: true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --log-level info --interval 2m kill --signal SIGKILL re2:^redis$
-    restart: always
-
-  # --- CAOS NO WORKER (Perda de pacotes) ---
-  pumba-worker:
-    image: gaiaadm/pumba:latest
-    container_name: pumba-worker
-    privileged: true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --log-level info --interval 90s netem --duration 20s --tc-image gaiadocker/iproute2 loss -p 20 re2:^worker$
-    restart: always
-
-  
 networks:
   rede-caos:
-    name: rede-caos # Força o nome da rede para não ter prefixos
+    name: rede-caos 
     driver: bridge
-
