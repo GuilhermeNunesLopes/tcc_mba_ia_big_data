@@ -1,0 +1,1 @@
+{"pastas": ["docker/meus_logs", "logpai/Apache", "logpai/Linux", "logpai/HDFS", "logpai/OpenSSH", "logpai/Zookeeper", "minikube/k8s-chaos/logs"], "taxa_contaminacao": 0.04}

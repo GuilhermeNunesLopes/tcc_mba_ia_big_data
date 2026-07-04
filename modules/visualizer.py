@@ -6,29 +6,55 @@ import plotly.figure_factory as ff
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import textwrap
+import streamlit as st
 
 def plot_anomaly_timeline_plotly(df):
-    """Gera uma linha do tempo interativa."""
+    """Gera uma linha do tempo interativa real."""
+    
+    # Verifica se a coluna Timestamp existe para usar o tempo real; se não, cai para a sequência (index)
+    tem_timestamp = 'Timestamp' in df.columns
+    x_col = 'Timestamp' if tem_timestamp else df.index
+    x_label = 'Tempo (Hora do Log)' if tem_timestamp else 'Sequência dos Logs'
+    
+    # Prepara os dados de hover (balãozinho ao passar o mouse)
+    hover_cols = []
+    if 'Template' in df.columns: hover_cols.append('Template')
+    if 'Source_Folder' in df.columns: hover_cols.append('Source_Folder')
+
     # Cria a figura base com Plotly Express
     fig = px.scatter(
         df, 
-        x=df.index, 
+        x=x_col, 
         y='anomaly_score', 
         color='is_anomaly',
         color_discrete_map={False: 'blue', True: 'red'},
         title="Linha do Tempo de Detecção de Anomalias",
-        labels={'index': 'Sequência dos Logs', 'anomaly_score': 'Decision Score'}
+        labels={x_col: x_label, 'anomaly_score': 'Decision Score (Gravidade)'},
+        hover_data=hover_cols
     )
     
+    # Para a linha pontilhada fazer sentido numa linha do tempo, os dados DEVEM estar ordenados
+    if tem_timestamp:
+        df_sorted = df.sort_values(by='Timestamp')
+        line_x = df_sorted['Timestamp']
+        line_y = df_sorted['anomaly_score']
+    else:
+        line_x = df.index
+        line_y = df['anomaly_score']
+        
     # Adiciona uma linha conectando os pontos para mostrar a tendência
     fig.add_trace(go.Scatter(
-        x=df.index, y=df['anomaly_score'], 
+        x=line_x, 
+        y=line_y, 
         mode='lines', 
         line=dict(color='blue', width=1, dash='dot'),
         showlegend=False,
         opacity=0.3
     ))
     
+    # Adiciona um mini-slider de zoom na parte inferior se for baseado em tempo
+    if tem_timestamp:
+        fig.update_xaxes(rangeslider_visible=True)
     return fig
 
 def plot_anomaly_distribution_plotly(df):
@@ -43,6 +69,7 @@ def plot_anomaly_distribution_plotly(df):
     )
     return fig
 
+@st.fragment
 def generate_interactive_network(df, output_path="temp_graph.html"):
     """
     Grafo de Similaridade de Logs (Anomalias vs Normais):
@@ -94,7 +121,7 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
         )
 
     # 3. Criar as conexões matemáticas (Mais visíveis)
-    if len(linhas_unicas) >= 2:
+    if len(linhas_unicas) >= 5:
         try:
             vectorizer = TfidfVectorizer(stop_words='english')
             tfidf_matrix = vectorizer.fit_transform(linhas_unicas)
@@ -122,6 +149,7 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
     
     return output_path
 
+
 def plot_confusion_matrix_plotly(cm):
     """Gera uma Matriz de Confusão interativa e elegante."""
     # Inverte a matriz apenas para o visual ficar no padrão acadêmico
@@ -142,3 +170,87 @@ def plot_confusion_matrix_plotly(cm):
         margin=dict(t=50, l=20, r=20, b=20)
     )
     return fig
+
+@st.cache_data(show_spinner="Calculando posições do grafo...")
+def graph_spring_layout(df,output_path="temp_graph_spring.html"):
+    if df.empty:
+        return None
+
+    coluna_texto = 'Template' if 'Template' in df.columns else 'Event'
+
+    # 1. Mais bolinhas: Aumentamos de 20 para 45 de cada tipo (Total de até 90 bolinhas na tela)
+    top_anomalias = df[df['is_anomaly'] == True][coluna_texto].value_counts().head(100)
+    top_normais = df[df['is_anomaly'] == False][coluna_texto].value_counts().head(100)
+
+    nodes_info = []
+    
+    for texto, freq in top_anomalias.items():
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'is_anomaly': True})
+        
+    for texto, freq in top_normais.items():
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'is_anomaly': False})
+
+    if not nodes_info:
+        return None
+
+    linhas_unicas = [n['texto'] for n in nodes_info]
+    G = nx.Graph()
+
+    # 2. Criar os Nós com Tamanho Controlado
+    for i, info in enumerate(nodes_info):
+        label_curto = textwrap.shorten(info['texto'], width=40, placeholder="...")
+        
+        cor = '#FF6B6B' if info['is_anomaly'] else "#1BBB06" 
+        status_txt = "🔴 ANOMALIA" if info['is_anomaly'] else "🟢 NORMAL"
+        
+        # Crescimento suavizado (usando raiz quadrada **) para não ficar gigante
+        # Tamanho base é 10.
+        tamanho_calculado = 10 + (info['freq'] ** 0.5) * 1.5 
+        
+        # Limitamos o tamanho máximo da bolinha em 35 pixels (antes estava 300)
+        tamanho = min(tamanho_calculado, 25)
+
+        G.add_node(
+            i, 
+            label=label_curto, 
+            title=f"{status_txt}\n\nLog Completo:\n{info['texto']}\n\nOcorrências: {info['freq']}", 
+            size=tamanho, 
+            color=cor 
+        )
+
+    # 3. Criar as conexões matemáticas (Mais visíveis)
+    if len(linhas_unicas) >= 5:
+        try:
+            vectorizer = TfidfVectorizer(stop_words='english')
+            tfidf_matrix = vectorizer.fit_transform(linhas_unicas)
+            matriz_similaridade = cosine_similarity(tfidf_matrix)
+
+            for i in range(len(linhas_unicas)):
+                for j in range(i + 1, len(linhas_unicas)):
+                    sim = matriz_similaridade[i, j]
+                    
+                    # Reduzimos para 5% de similaridade para criar MAIS conexões
+                    if sim > 0.05:
+                        # Multiplicador aumentado (de 5 para 8) para deixar as linhas mais gordinhas e visíveis
+                        G.add_edge(i, j, weight=sim * 8, title=f"Similaridade: {sim:.0%}")
+        except ValueError:
+            pass
+
+    """Gera um layout de grafo usando o algoritmo de força de mola (spring layout)."""
+    pos = nx.spring_layout(G, seed=42)  # Seed para reprodutibilidade
+
+    for node in G.nodes():
+        G.nodes[node]['x'] = pos[node][0] * 1000  # Escala para melhor visualização
+        G.nodes[node]['y'] = pos[node][1] * 1000
+
+    # 5. Inicializa o Pyvis
+    net = Network(height='450px', width='100%', bgcolor='#222222', font_color='white')
+
+    net.from_nx(G)
+    # 6. Turn off live physics simulation to prevent the graph from re-adjusting
+    net.toggle_physics(False)
+ 
+    # 8. Domando a Física do PyVis para o novo formato
+    net.save_graph(output_path)
+
+    return output_path

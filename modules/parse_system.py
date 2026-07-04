@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import pandas as pd
 from drain3 import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
@@ -36,17 +37,29 @@ def automatic_drain_parse(file_path):
     
     data = []
 
+    # Regex Coringa para pegar os 3 formatos de data mais comuns do mundo:
+    # 1. ISO/Docker (ex: 2023-10-25 15:30:00 ou 2023-10-25T15:30:00)
+    # 2. Syslog/Linux (ex: Oct 25 15:30:00 ou Oct  4 15:30:00)
+    # 3. Apache (ex: 25/Oct/2023:15:30:00)
+    regex_data = re.compile(r'(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}|\b[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|\d{2}/[A-Z][a-z]{2}/\d{4}:\d{2}:\d{2}:\d{2})')
+
     with open(file_path, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue # Pula linhas vazias
             
+            # 1. TENTA PESCAR A DATA PRIMEIRO
+            timestamp_extraido = None
+            match_data = regex_data.search(line)
+            if match_data:
+                timestamp_extraido = match_data.group(1)
             # O Drain processa a linha e tenta encontrar a qual "cluster/template" ela pertence
             result = template_miner.add_log_message(line)
             
             # result contém o ID do template, o template em si e os parâmetros extraídos
             data.append({
+                'Timestamp': timestamp_extraido,
                 'Raw_Log': line,
                 'Cluster_ID': result["cluster_id"],
                 'Template': result["template_mined"],
@@ -59,9 +72,10 @@ def automatic_drain_parse(file_path):
     
     df = pd.DataFrame(data)
     
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')  # Converte para datetime, erros viram NaT
     # Exibe um resumo de quantos templates únicos foram encontrados
     total_clusters = df['Cluster_ID'].nunique()
-    print(f"Encontradas {len(df)} linhas de log, agrupadas em {total_clusters} templates (clusters).")
+    print(f"Encontradas {len(df)} linhas. Extraídos {df['Timestamp'].notna().sum()} timestamps. Clusters: {total_clusters}")
     
     return df
 

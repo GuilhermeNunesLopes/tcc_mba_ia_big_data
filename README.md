@@ -94,13 +94,13 @@ cd docker ; docker-compose down --remove-orphans ; docker container prune -f; do
 ```
 ## How to run the project 
 ```bash
-streamlit run main.py
+python main.py
 ```
 
 ## RODANDO VIA MINIKUBE
 ### Como iniciar o projeto
 ```bash
-streamlit run main.py
+python main.py
 
 cd minikube
 

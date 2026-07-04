@@ -2,65 +2,48 @@ import os
 import time
 from datetime import date
 import pandas as pd
-import streamlit as st
-import streamlit.components.v1 as components
-
-# Importando seus módulos
+import subprocess
+import json
+import platform
+import atexit
+# Importando apenas os módulos de processamento e IA
 import modules.parse_system as parse_system
 import modules.preprocessor as preprocessor
 import modules.anomaly_detector as anomaly_detector
-import modules.visualizer as visualizer
-
-st.set_page_config(layout="wide", page_title="Detecção de Anomalias - TCC")
 
 # ==========================================
 # MAPEAMENTO DE PASTAS DE LOGS
 # ==========================================
-PASTAS_DISPONIVEIS = [
-    "docker/meus_logs",
-    "logpai/Apache",  
-    "logpai/Linux",
-    "logpai/HDFS",
-    "logpai/OpenSSH",   
-    "logpai/Zookeeper",
-    "minikube/k8s-chaos/logs"   
-]
-# ==========================================
+def ler_configuracoes():
+    """Lê o arquivo de configuração gerado pelo Streamlit."""
+    try:
+        with open("config.json", "r", encoding='utf-8') as f:
+            config = json.load(f)
+            return config.get("pastas", []), config.get("taxa_contaminacao", 0.03)
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Se o dashboard ainda não gerou o arquivo, usa valores padrão seguros
+        pastas_padrao = [
+            "docker/meus_logs",
+            "logpai/Apache",  
+            "logpai/Linux",
+            "logpai/HDFS",
+            "logpai/OpenSSH",   
+            "logpai/Zookeeper",
+            "minikube/k8s-chaos/logs"
+        ] 
+        return pastas_padrao, 0.03
 
-def main():
-    st.title("Anomaly Detection Dashboard for Logs 📊")
+def processar_logs_em_lote():
+    print(f"\n[{time.strftime('%H:%M:%S')}] 🔄 Iniciando varredura de logs...")
     
-    # --- MENU LATERAL ---
-    st.sidebar.header("1. Configurações de Monitoramento")
-    
-    # INTERRUPTOR DE TEMPO REAL
-    auto_refresh = st.sidebar.toggle("⏱️ Atualização Automática (60s)", value=True, help="Desligue para poder marcar as caixinhas de validação sem a tela recarregar.")
-    
-    pastas_selecionadas = st.sidebar.multiselect(
-        "Selecione as origens dos logs:",
-        options=PASTAS_DISPONIVEIS,
-        default=PASTAS_DISPONIVEIS 
-    )
+    pastas_ativas, taxa_contaminacao_ativa = ler_configuracoes()
 
-    st.sidebar.header("2. Inteligência Artificial")
-    contamination = st.sidebar.slider(
-        "Taxa de Contaminação (Anomalias)", 
-        min_value=0.01, max_value=0.10, value=0.03, step=0.01
-    )
-    
-    # --- PROCESSAMENTO AUTOMÁTICO ---
-    # Agora o código roda direto, sem depender de botão!
-    if len(pastas_selecionadas) == 0:
-        st.warning("⚠️ Selecione pelo menos uma pasta de origem na barra lateral para iniciar o monitoramento.")
+    if not pastas_ativas:
+        print(f"[{time.strftime('%H:%M:%S')}] ⏸️ Nenhuma pasta selecionada no painel. Aguardando...")
         return
-
-    # Usamos o placeholder apenas para dar um feedback visual se os dados forem muito grandes
-    status_text = st.empty()
-    status_text.info("🔄 Lendo e processando logs atuais...")
-
-    # PASSO 1: Leitura e Parse
+    
     df_list = []
-    for pasta in pastas_selecionadas:
+    for pasta in pastas_ativas:
         if os.path.exists(pasta):
             read_generic = parse_system.read_dir_to_temps(pasta)
             for path in read_generic:
@@ -69,13 +52,20 @@ def main():
                     df_p['Source_Folder'] = pasta
                     df_list.append(df_p)
 
+    # Cria a pasta resultados se ela não existir para evitar erros
+    os.makedirs("resultados", exist_ok=True)
+    today = date.today().strftime("%Y-%m-%d")
+    caminho_csv = f"resultados/resultado_tcc_{today}.csv"
+
     if not df_list:
-        status_text.error("Nenhum dado válido extraído. Verifique as pastas.")
+        print(f"[{time.strftime('%H:%M:%S')}] ❌ Nenhum dado válido encontrado nas pastas.")
+        # Dá o "toque" no arquivo antigo para o Streamlit sair da tela de carregamento
+        if os.path.exists(caminho_csv):
+            os.utime(caminho_csv, None) 
         return
 
     df_logs = pd.concat(df_list, ignore_index=True)
 
-    # PASSO 2: Vetorização
     if 'Template' in df_logs.columns and 'Event' not in df_logs.columns:
         df_logs['Event'] = df_logs['Template']
         df_logs['Source'] = df_logs['Source_Folder'] 
@@ -83,85 +73,90 @@ def main():
         
     X_tfidf, vectorizer = preprocessor.tfidf_vectorize(df_logs) 
 
-    # PASSO 3: Detecção com Isolation Forest
-    df_final, model = anomaly_detector.process_log_anomalies(df_logs, X_tfidf, contamination=contamination)
+    print(f"[{time.strftime('%H:%M:%S')}] 🧠 Rodando modelo de Detecção de Anomalias...")
+    df_final, model = anomaly_detector.process_log_anomalies(df_logs, X_tfidf, contamination=taxa_contaminacao_ativa)
 
-    today = date.today().strftime("%Y-%m-%d")
-    output_name = f"resultado_tcc_{today}.csv"
-    df_final.to_csv(output_name, index=False)
+    # Salvando no local correto
+    df_final.to_csv(caminho_csv, index=False)
+    print(f"[{time.strftime('%H:%M:%S')}] ✅ Processamento concluído! Salvo em: {caminho_csv}")
 
-    status_text.empty() # Limpa a mensagem de "processando" quando acaba
-
-    # --- EXIBIÇÃO DE MÉTRICAS E GRÁFICOS ---
-    anomalias = df_final[df_final['is_anomaly'] == True]
-    normais = df_final[df_final['is_anomaly'] == False]
-
-    st.markdown("---")
-    st.subheader("Resumo da Análise (Live)")
     
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total de Logs Processados", len(df_final))
-    col2.metric("Anomalias Detectadas", len(anomalias), f"{contamination*100}%")
-    col3.metric("Logs Normais", len(normais))
+# Variável global para guardar o processo do dashboard
+processo_dashboard = None
 
-    st.markdown("---")
-    st.subheader("Visualizações")
+def limpar_processos_antigos():
+    """Mata qualquer processo fantasma do Streamlit antes de iniciar um novo."""
+    sistema = platform.system()
+    try:
+        if sistema == "Windows":
+            # Comando Windows para forçar o fechamento do Streamlit
+            os.system("taskkill /F /IM streamlit.exe >nul 2>&1")
+        else:
+            # Comando Linux/Mac para matar o processo
+            os.system("pkill -f 'streamlit' >/dev/null 2>&1")
+    except Exception:
+        pass
 
-    col_graf1, col_graf2 = st.columns(2)
-    
-    with col_graf1:
-        fig_timeline = visualizer.plot_anomaly_timeline_plotly(df_final)
-        st.plotly_chart(fig_timeline, use_container_width=True)
+def fechar_dashboard_atual():
+    """Garante que o dashboard atual feche se o main.py "crashar" ou fechar."""
+    global processo_dashboard
+    if processo_dashboard is not None:
+        processo_dashboard.terminate()
+        processo_dashboard.wait()
 
-    with col_graf2:
-        fig_dist = visualizer.plot_anomaly_distribution_plotly(df_final)
-        st.plotly_chart(fig_dist, use_container_width=True)
-
-    st.markdown("### Grafo de Semelhança (Anomalias vs Normais)")
-    html_graph = visualizer.generate_interactive_network(df_final)
-    if html_graph and os.path.exists(html_graph):
-        with open(html_graph, 'r', encoding='utf-8') as f:
-            source_code = f.read()
-        components.html(source_code, height=450)
-    else:
-        st.info("Não há anomalias suficientes para gerar o grafo de conexões.")
-
-    # ==========================================
-    # VALIDAÇÃO ESPECIALISTA (Precision @ 25%)
-    # ==========================================
-    st.markdown("---")
-    st.subheader("Validação Especialista (Precision @ Top 85%)")
-    
-    if auto_refresh:
-        st.warning("⚠️ **Atenção:** O painel está em modo 'Tempo Real'. Para auditar os falsos positivos na tabela abaixo sem a tela recarregar, desligue o interruptor no Menu Lateral.")
-
-    if not anomalias.empty:
-        k_valor = max(1, int(len(anomalias) * 0.85))
-        top_k_logs = anomalias.nsmallest(k_valor, 'anomaly_score').copy()
-        top_k_logs['É Falha Real?'] = True
-        
-        colunas_mostrar = ['É Falha Real?', 'Source_Folder', 'Template', 'anomaly_score']
-        df_editado = st.data_editor(
-            top_k_logs[colunas_mostrar],
-            hide_index=True,
-            use_container_width=True,
-            disabled=['Source_Folder', 'Template', 'anomaly_score'] 
-        )
-        
-        acertos = df_editado['É Falha Real?'].sum()
-        precisao_k = acertos / k_valor
-        
-        st.info(f"**Resultado Interativo:** De {k_valor} logs críticos avaliados, o especialista validou {acertos} como falhas reais.")
-        st.metric(f"Métrica Precision (Amostra de 85%)", f"{precisao_k:.1%}")
-    else:
-        st.success("Nenhuma anomalia para validar.")
-
-    # ==========================================
-    # O MOTOR DE TEMPO REAL (LOOP 120s)
-    # ==========================================
-    if auto_refresh:
-        time.sleep(120)
-        st.rerun()
+# Registra a função de limpeza para rodar automaticamente quando o Python fechar
+atexit.register(fechar_dashboard_atual)
 
 if __name__ == "__main__":
-    main()
+    print("🧹 Limpando processos fantasmas antigos...")
+    limpar_processos_antigos()
+    time.sleep(1) # Dá um tempinho para o sistema operacional limpar a memória
+    
+    print("🚀 Iniciando o Sistema de Detecção de Anomalias...")
+    
+    # 1. INICIA O DASHBOARD
+    print("🖥️ Abrindo o Dashboard no navegador (Sempre na porta 8501)...")
+    
+    # Forçamos a porta 8501 para garantir que nunca abra em portas diferentes
+    comando = ["streamlit", "run", "modules/dashboard.py", "--server.port", "8501"]
+    processo_dashboard = subprocess.Popen(comando)
+    
+    time.sleep(3) # Tempo para o navegador abrir
+    
+    print("\n⚙️ Iniciando Motor de Processamento de Logs (Background)...")
+    print("⚠️ Pressione CTRL+C no terminal para encerrar o motor e o painel.")
+    print("-" * 50)
+    
+    # 2. LOOP DO MOTOR
+    try:
+        ultimo_json_modificado = 0
+        
+        while True:
+            # Roda a IA e gera o CSV
+            processar_logs_em_lote()
+            
+            print("⏳ Aguardando 120s (ou até o usuário mudar alguma configuração na tela)...\n")
+            
+            # Anota o horário que o JSON foi salvo pela última vez
+            if os.path.exists("config.json"):
+                ultimo_json_modificado = os.path.getmtime("config.json")
+            
+            # Loop de espera inteligente (60 vezes de 2 segundos = 120s)
+            for _ in range(60):
+                time.sleep(2)
+                
+                # Se o arquivo existir, verifica se ele foi alterado agora
+                if os.path.exists("config.json"):
+                    modificacao_atual = os.path.getmtime("config.json")
+                    if modificacao_atual > ultimo_json_modificado:
+                        print("\n🔔 Nova configuração detectada! Acordando o motor imediatamente...")
+                        break # Quebra a espera de 120s e volta para rodar a IA!
+            
+    except KeyboardInterrupt:
+        print("\n🛑 Encerrando o sistema a pedido do usuário...")
+        # O atexit fará o trabalho de fechar o Streamlit automaticamente!
+        print("✅ Motor e Dashboard encerrados com sucesso.")
+        
+    except Exception as e:
+        print(f"\n⚠️ Erro inesperado no motor: {e}")
+        time.sleep(60)
