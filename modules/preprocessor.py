@@ -1,6 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 import pandas as pd
+import scipy.sparse as sp
 from scipy.sparse import issparse
 
 def clean_log_text(text):
@@ -17,7 +18,7 @@ def tfidf_vectorize(df, vectorizer=None):
     Se 'vectorizer' for None, cria e treina um novo (para dados de treino).
     """
     if df.empty:
-        return pd.DataFrame(), vectorizer
+        return sp.csr_matrix((0, 0)), vectorizer
     
     # Cria uma cópia para evitar warnings do Pandas (SettingWithCopyWarning)
     df_clean = df.copy()
@@ -37,8 +38,12 @@ def tfidf_vectorize(df, vectorizer=None):
     if vectorizer is None:
         # Modo Treino: Cria e ajusta aos dados
         vectorizer = TfidfVectorizer(
-            max_features=1000,
-            ngram_range=(1, 2),
+        #Diminui o numero de feature afim de reduzir o vocabulário lido, pois logs são muito repetitivos
+        #max_features=1000,
+        max_features=300,
+        # modificando de para pegar unigramas ao invés de bigramas, visto que rodar issso desse jeito está gerando muitos dados
+        #ngram_range=(1, 2),
+        ngram_range=(1, 1),
             stop_words=None
         )
         tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
@@ -48,11 +53,12 @@ def tfidf_vectorize(df, vectorizer=None):
 
     # 5. Criar DataFrame (Cuidado com memória em datasets gigantes)
     # Se a matriz for muito grande, o ideal é usar a matriz esparsa direto no modelo ML
-    tfidf_df = pd.DataFrame(
-        tfidf_matrix.toarray(), 
-        columns=vectorizer.get_feature_names_out(),
-        index=df_clean.index
-    )
+    # Desativado a matriz densa afim de melhorar o processamento.
+    # tfidf_df = pd.DataFrame(
+    #    tfidf_matrix.toarray(), 
+    #    columns=vectorizer.get_feature_names_out(),
+    #    index=df_clean.index
+    #)
     
-    # Retorna o DataFrame E o Vectorizer
-    return tfidf_df, vectorizer
+    # Retorna a matriz esparsa E o Vectorizer
+    return tfidf_matrix, vectorizer

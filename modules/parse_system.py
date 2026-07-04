@@ -72,7 +72,8 @@ def automatic_drain_parse(file_path):
     
     df = pd.DataFrame(data)
     
-    df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')  # Converte para datetime, erros viram NaT
+    #df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce')  # Converte para datetime, erros viram NaT
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='mixed', errors='coerce')
     # Exibe um resumo de quantos templates únicos foram encontrados
     total_clusters = df['Cluster_ID'].nunique()
     print(f"Encontradas {len(df)} linhas. Extraídos {df['Timestamp'].notna().sum()} timestamps. Clusters: {total_clusters}")

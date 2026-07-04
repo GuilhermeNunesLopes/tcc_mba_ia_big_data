@@ -28,8 +28,12 @@ def tfidf_vectorize(df):
 
     # 4. Configuração Estratégica do Vectorizer
     vectorizer = TfidfVectorizer(
-        max_features=1000,
-        ngram_range=(1, 2), # <--- O SEGREDO: Pega palavras sozinhas e pares (ex: "connection" e "connection failed")
+        #Diminui o numero de feature afim de reduzir o vocabulário lido, pois logs são muito repetitivos
+        #max_features=1000,
+        max_features=300,
+        # modificando de para pegar unigramas ao invés de bigramas, visto que rodar issso desse jeito está gerando muitos dados
+        #ngram_range=(1, 2),
+        ngram_range=(1, 1),
         stop_words=None     # Em logs, palavras como "at" ou "on" podem ser importantes
     )
     

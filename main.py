@@ -55,13 +55,13 @@ def processar_logs_em_lote():
     # Cria a pasta resultados se ela não existir para evitar erros
     os.makedirs("resultados", exist_ok=True)
     today = date.today().strftime("%Y-%m-%d")
-    caminho_csv = f"resultados/resultado_tcc_{today}.csv"
+    caminho_parquet = f"resultados/resultado_tcc_{today}.parquet"
 
     if not df_list:
         print(f"[{time.strftime('%H:%M:%S')}] ❌ Nenhum dado válido encontrado nas pastas.")
         # Dá o "toque" no arquivo antigo para o Streamlit sair da tela de carregamento
-        if os.path.exists(caminho_csv):
-            os.utime(caminho_csv, None) 
+        if os.path.exists(caminho_parquet):
+            os.utime(caminho_parquet, None) 
         return
 
     df_logs = pd.concat(df_list, ignore_index=True)
@@ -71,16 +71,27 @@ def processar_logs_em_lote():
         df_logs['Source'] = df_logs['Source_Folder'] 
         df_logs['Level'] = "INFO" 
         
-    X_tfidf, vectorizer = preprocessor.tfidf_vectorize(df_logs) 
+    matriz_esparsa, vectorizer = preprocessor.tfidf_vectorize(df_logs)
 
     print(f"[{time.strftime('%H:%M:%S')}] 🧠 Rodando modelo de Detecção de Anomalias...")
-    df_final, model = anomaly_detector.process_log_anomalies(df_logs, X_tfidf, contamination=taxa_contaminacao_ativa)
+    df_resultado, modelo_treinado = anomaly_detector.process_log_anomalies(df_logs, matriz_esparsa)
 
-    # Salvando no local correto
-    df_final.to_csv(caminho_csv, index=False)
-    print(f"[{time.strftime('%H:%M:%S')}] ✅ Processamento concluído! Salvo em: {caminho_csv}")
-
+    # 1. Remove qualquer linha onde a coluna principal do log seja NaN ou nula
+    # (Troque 'Raw_Log' pelo nome da sua coluna de texto, se for diferente, como 'Event')
+    df_resultado = df_resultado.dropna(subset=['Raw_Log'])
     
+    # 2. Garante que os dados sejam texto e remove espaços em branco nas pontas
+    df_resultado['Raw_Log'] = df_resultado['Raw_Log'].astype(str).str.strip()
+    
+    # 3. Filtra e mantém APENAS as linhas que possuem algum conteúdo (remove strings vazias "")
+    df_resultado = df_resultado[df_resultado['Raw_Log'] != ""]
+    
+    # 4. Agora sim, salva o Parquet limpo e enxuto
+    df_resultado.to_parquet(caminho_parquet, index=False)
+    #df_final.to_csv(caminho_parquet, index=False)
+    print(f"[{time.strftime('%H:%M:%S')}] ✅ Processamento concluído! Salvo em: {caminho_parquet}")
+
+
 # Variável global para guardar o processo do dashboard
 processo_dashboard = None
 
@@ -132,25 +143,25 @@ if __name__ == "__main__":
         ultimo_json_modificado = 0
         
         while True:
-            # Roda a IA e gera o CSV
+            # Roda a IA e gera o parquet
             processar_logs_em_lote()
             
-            print("⏳ Aguardando 120s (ou até o usuário mudar alguma configuração na tela)...\n")
+            print("⏳ Aguardando 10m (ou até o usuário mudar alguma configuração na tela)...\n")
             
             # Anota o horário que o JSON foi salvo pela última vez
             if os.path.exists("config.json"):
                 ultimo_json_modificado = os.path.getmtime("config.json")
             
-            # Loop de espera inteligente (60 vezes de 2 segundos = 120s)
+            # Loop de espera inteligente (60 vezes de 10 segundos = 600s)
             for _ in range(60):
-                time.sleep(2)
+                time.sleep(10)
                 
                 # Se o arquivo existir, verifica se ele foi alterado agora
                 if os.path.exists("config.json"):
                     modificacao_atual = os.path.getmtime("config.json")
                     if modificacao_atual > ultimo_json_modificado:
                         print("\n🔔 Nova configuração detectada! Acordando o motor imediatamente...")
-                        break # Quebra a espera de 120s e volta para rodar a IA!
+                        break # Quebra a espera de 600s e volta para rodar a IA!
             
     except KeyboardInterrupt:
         print("\n🛑 Encerrando o sistema a pedido do usuário...")

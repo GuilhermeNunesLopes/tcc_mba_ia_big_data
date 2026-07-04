@@ -1,6 +1,6 @@
 import modules.parse_system as parse_system
 import modules.dowloand_dataset_hugging as dowloand_dataset_hugging
-import modules.anomaly_detector as anomaly_detector
+import modules.old_versions.anomaly_detector_old as anomaly_detector_old
 import modules.preprocessor as preprocessor
 import modules.visualizer as visualizer
 from datetime import date
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     print(f"Dimensões para Processamento: {X_tfidf.shape}")
 
     # 3. Detecção de Anomalias (Ajustado os nomes das variáveis)
-    df_final = anomaly_detector.process_log_anomalies(df_logs, X_tfidf, contamination)
+    df_final = anomaly_detector_old.process_log_anomalies(df_logs, X_tfidf, contamination)
     
     # 4. Filtragem de Resultados
     anomalias = df_final[df_final['is_anomaly'] == True]

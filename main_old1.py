@@ -1,6 +1,6 @@
 import modules.parse_system as parse_system
 import modules.dowloand_dataset_hugging as dowloand_dataset_hugging
-import modules.anomaly_detector as anomaly_detector
+import modules.old_versions.anomaly_detector_old as anomaly_detector_old
 import modules.preprocessor as preprocessor
 import modules.visualizer as visualizer
 from datetime import date
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     print(" BUSCANDO ANOMALIAS NO APACHE ")
     print("="*30)
     
-    anomalies_apache = anomaly_detector.detect_anomalies(X_apache, contamination=contamination)
+    anomalies_apache = anomaly_detector_old.detect_anomalies(X_apache, contamination=contamination)
     
     if not anomalies_apache.empty:
         # Exibimos as linhas do df1 original que correspondem aos índices das anomalias
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     print(" BUSCANDO ANOMALIAS NO SPARK ")
     print("="*30)
     
-    anomalies_spark = anomaly_detector.detect_anomalies(X_spark, contamination=contamination)
+    anomalies_spark = anomaly_detector_old.detect_anomalies(X_spark, contamination=contamination)
     
     if not anomalies_spark.empty:
         print(df_spark.loc[anomalies_spark.index, ['Level', 'Event']])
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     print(" BUSCANDO ANOMALIAS NOS LOGS GENÉRICOS ")
     print("="*30)
     
-    anomalies_generic = anomaly_detector.detect_anomalies(X_generic, contamination=contamination)
+    anomalies_generic = anomaly_detector_old.detect_anomalies(X_generic, contamination=contamination)
     
     if not anomalies_generic.empty:
         # Exibimos as linhas do df1 original que correspondem aos índices das anomalias
@@ -92,9 +92,9 @@ if __name__ == "__main__":
         print("Nenhuma anomalia detectada nos logs genéricos.")
 
 
-    normal = anomaly_detector.get_normal_logs(X_apache, contamination=contamination)
-    normal_spark = anomaly_detector.get_normal_logs(X_spark, contamination=contamination)
-    normal_generic = anomaly_detector.get_normal_logs(X_generic, contamination=contamination)
+    normal = anomaly_detector_old.get_normal_logs(X_apache, contamination=contamination)
+    normal_spark = anomaly_detector_old.get_normal_logs(X_spark, contamination=contamination)
+    normal_generic = anomaly_detector_old.get_normal_logs(X_generic, contamination=contamination)
 
     dataframe_result = pd.DataFrame()
     dataframe_result["no_anomaly_spark"] = df_spark.loc[normal_spark.index, ['Level', 'Event']]

@@ -218,13 +218,13 @@ def plot_confusion_matrix_plotly(cm):
     return fig
 
 @st.cache_data(show_spinner="Calculando posições do grafo...")
-def graph_spring_layout(df, output_path="temp_graph_spring.html"):
+def graph_spring_layout(df,output_path="temp_graph_spring.html"):
     if df.empty:
         return None
 
     coluna_texto = 'Template' if 'Template' in df.columns else 'Event'
 
-    # 1. Preparação dos nós (mantida a sua lógica original)
+    # 1. Mais bolinhas: Aumentamos de 20 para 45 de cada tipo (Total de até 90 bolinhas na tela)
     top_anomalias = df[df['is_anomaly'] == True][coluna_texto].value_counts().head(100)
     top_normais = df[df['is_anomaly'] == False][coluna_texto].value_counts().head(100)
 
@@ -242,13 +242,18 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     linhas_unicas = [n['texto'] for n in nodes_info]
     G = nx.Graph()
 
-    # 2. Criar os Nós
+    # 2. Criar os Nós com Tamanho Controlado
     for i, info in enumerate(nodes_info):
         label_curto = textwrap.shorten(info['texto'], width=40, placeholder="...")
+        
         cor = '#FF6B6B' if info['is_anomaly'] else "#1BBB06" 
         status_txt = "🔴 ANOMALIA" if info['is_anomaly'] else "🟢 NORMAL"
         
+        # Crescimento suavizado (usando raiz quadrada **) para não ficar gigante
+        # Tamanho base é 10.
         tamanho_calculado = 10 + (info['freq'] ** 0.5) * 1.5 
+        
+        # Limitamos o tamanho máximo da bolinha em 35 pixels (antes estava 300)
         tamanho = min(tamanho_calculado, 25)
 
         G.add_node(
@@ -259,7 +264,7 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
             color=cor 
         )
 
-    # 3. Criar as conexões matemáticas
+    # 3. Criar as conexões matemáticas (Mais visíveis)
     if len(linhas_unicas) >= 5:
         try:
             vectorizer = TfidfVectorizer(stop_words='english')
@@ -269,38 +274,29 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
             for i in range(len(linhas_unicas)):
                 for j in range(i + 1, len(linhas_unicas)):
                     sim = matriz_similaridade[i, j]
+                    
+                    # Reduzimos para 5% de similaridade para criar MAIS conexões
                     if sim > 0.05:
+                        # Multiplicador aumentado (de 5 para 8) para deixar as linhas mais gordinhas e visíveis
                         G.add_edge(i, j, weight=sim * 8, title=f"Similaridade: {sim:.0%}")
         except ValueError:
             pass
 
-    # ==========================================
-    # 4. INICIALIZAÇÃO DO PYVIS COM FÍSICA AVANÇADA
-    # (O nx.spring_layout e posições manuais foram removidos)
-    # ==========================================
-    net = Network(height='450px', width='100%', bgcolor='#0E1117', font_color='white')
-    net.from_nx(G)
-    
-    # 5. Configuração em JavaScript da física de partículas
-    # O "avoidOverlap: 1" é o que impede que os rótulos se amassem
-    physics_options = """
-    var options = {
-      "physics": {
-        "forceAtlas2Based": {
-          "gravitationalConstant": -150,
-          "centralGravity": 0.005,
-          "springLength": 200,
-          "springConstant": 0.08,
-          "avoidOverlap": 1 
-        },
-        "minVelocity": 0.75,
-        "solver": "forceAtlas2Based"
-      }
-    }
-    """
-    net.set_options(physics_options)
+    """Gera um layout de grafo usando o algoritmo de força de mola (spring layout)."""
+    pos = nx.spring_layout(G, k=0.5, seed=42)  # Seed para reprodutibilidade
 
-    # 6. Salva e gera o HTML
+    for node in G.nodes():
+        G.nodes[node]['x'] = pos[node][0] * 350  # Escala para melhor visualização
+        G.nodes[node]['y'] = pos[node][1] * 350
+
+    # 5. Inicializa o Pyvis
+    net = Network(height='450px', width='100%', bgcolor='#0E1117', font_color='white')
+
+    net.from_nx(G)
+    # 6. Turn off live physics simulation to prevent the graph from re-adjusting
+    net.toggle_physics(False)
+ 
+    # 8. Domando a Física do PyVis para o novo formato
     net.save_graph(output_path)
 
     return output_path
