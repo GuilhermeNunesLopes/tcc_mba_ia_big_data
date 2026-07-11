@@ -42,8 +42,8 @@ def tfidf_vectorize(df, vectorizer=None):
         #max_features=1000,
         max_features=300,
         # modificando de para pegar unigramas ao invés de bigramas, visto que rodar issso desse jeito está gerando muitos dados
-        #ngram_range=(1, 2),
-        ngram_range=(1, 1),
+        ngram_range=(1, 2),
+        #ngram_range=(1, 1),
             stop_words=None
         )
         tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])

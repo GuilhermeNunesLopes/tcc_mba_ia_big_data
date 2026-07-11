@@ -16,9 +16,9 @@ def plot_anomaly_timeline_plotly(df):
     anomalias = df[df['is_anomaly'] == True]
     normais = df[df['is_anomaly'] == False]
     
-    # Se houver mais de 3000 logs normais, pega uma amostra aleatória para não travar a tela
-    if len(normais) > 3000:
-        normais_amostra = normais.sample(n=3000, random_state=42)
+    # Se houver mais de 5000 logs normais, pega uma amostra aleatória para não travar a tela
+    if len(normais) > 5000:
+        normais_amostra = normais.sample(n=5000, random_state=42)
     else:
         normais_amostra = normais
         
@@ -287,11 +287,11 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     var options = {
       "physics": {
         "forceAtlas2Based": {
-          "gravitationalConstant": -150,
-          "centralGravity": 0.005,
-          "springLength": 200,
-          "springConstant": 0.08,
-          "avoidOverlap": 1 
+          "gravitationalConstant": -400, 
+          "centralGravity": 0.005,       
+          "springLength": 350,           
+          "springConstant": 0.04,        
+          "avoidOverlap": 1              
         },
         "minVelocity": 0.75,
         "solver": "forceAtlas2Based"

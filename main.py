@@ -86,6 +86,11 @@ def processar_logs_em_lote():
     # 3. Filtra e mantém APENAS as linhas que possuem algum conteúdo (remove strings vazias "")
     df_resultado = df_resultado[df_resultado['Raw_Log'] != ""]
     
+
+
+
+
+    
     # 4. Agora sim, salva o Parquet limpo e enxuto
     df_resultado.to_parquet(caminho_parquet, index=False)
     #df_final.to_csv(caminho_parquet, index=False)
