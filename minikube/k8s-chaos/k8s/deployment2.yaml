@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-log-app
+  labels:
+    app: chaos-log-app
+spec:
+  replicas: 1 # Mantido em 1 para concentrar os logs no mesmo arquivo durante o teste
+  selector:
+    matchLabels:
+      app: chaos-log-app
+  template:
+    metadata:
+      labels:
+        app: chaos-log-app
+    spec:
+      containers:
+      - name: python-app
+        image: chaos-log-app:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8087
+        # Define o diretório de trabalho para que o caminho relativo 'k8s-chaos/logs' funcione corretamente
+        workingDir: /app
+        volumeMounts:
+        - name: local-logs-volume
+          mountPath: /app/k8s-chaos/logs
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: local-logs-volume
+        hostPath:
+          # Substitua este caminho pelo caminho absoluto na sua máquina host
+          path: minikube/k8s-chaos/logs
+          type: DirectoryOrCreate

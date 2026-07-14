@@ -1,0 +1,14 @@
+# Usa uma imagem Python leve
+FROM python:3.11-alpine
+
+# Define o diretório de trabalho
+WORKDIR /app
+
+# Copia o código para dentro do container
+COPY app2.py .
+
+# Define que o output do Python não deve usar buffer (garante que os logs apareçam imediatamente)
+ENV PYTHONUNBUFFERED=1
+
+# Comando para rodar a aplicação
+CMD ["python", "app2.py"]

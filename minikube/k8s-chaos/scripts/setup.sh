@@ -22,10 +22,13 @@ eval "$(minikube docker-env)"
 
 log "3/5 — Build da imagem demo-app:latest..."
 docker build -t demo-app:latest "$PROJECT_DIR/app/"
+docker build -t chaos-log-app:latest "$PROJECT_DIR/app/Dockerfile2"
 
 log "4/5 — Aplicando deployment e service..."
 kubectl apply -f "$PROJECT_DIR/k8s/deployment.yaml"
+kubectl apply -f "$PROJECT_DIR/k8s/deployment2.yaml"
 kubectl rollout status deployment/demo-app --timeout=90s
+kubectl rollout status deployment/chaos-log-app --timeout=90s
 
 log "5/5 — Instalando Chaos Mesh (se necessário)..."
 if ! helm status chaos-mesh -n chaos-mesh > /dev/null 2>&1; then
