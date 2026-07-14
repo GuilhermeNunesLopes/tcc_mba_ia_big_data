@@ -10,7 +10,11 @@ import atexit
 import modules.parse_system as parse_system
 import modules.preprocessor as preprocessor
 import modules.anomaly_detector as anomaly_detector
+from modules.mttd_mtti import RCA_MetricsTracker
+from sklearn.model_selection import train_test_split
 
+#Iniciando o Tracking do MTTI E MTTR
+tracker = RCA_MetricsTracker()
 # ==========================================
 # MAPEAMENTO DE PASTAS DE LOGS
 # ==========================================
@@ -23,12 +27,12 @@ def ler_configuracoes():
     except (FileNotFoundError, json.JSONDecodeError):
         # Se o dashboard ainda não gerou o arquivo, usa valores padrão seguros
         pastas_padrao = [
-            "docker/meus_logs",
-            "logpai/Apache",  
-            "logpai/Linux",
-            "logpai/HDFS",
-            "logpai/OpenSSH",   
-            "logpai/Zookeeper",
+        #    "docker/meus_logs",
+        #    "logpai/Apache",  
+        #    "logpai/Linux",
+        #    "logpai/HDFS",
+        #    "logpai/OpenSSH",   
+        #   "logpai/Zookeeper",
             "minikube/k8s-chaos/logs"
         ] 
         return pastas_padrao, 0.03
@@ -42,6 +46,9 @@ def processar_logs_em_lote():
         print(f"[{time.strftime('%H:%M:%S')}] ⏸️ Nenhuma pasta selecionada no painel. Aguardando...")
         return
     
+    lote_id = f"batch_{int(time.time())}"
+    tracker.start_injection(lote_id)
+
     df_list = []
     for pasta in pastas_ativas:
         if os.path.exists(pasta):
@@ -69,34 +76,100 @@ def processar_logs_em_lote():
     if 'Template' in df_logs.columns and 'Event' not in df_logs.columns:
         df_logs['Event'] = df_logs['Template']
         df_logs['Source'] = df_logs['Source_Folder'] 
-        df_logs['Level'] = "INFO" 
+        df_logs['Level'] = "INFO"
         
     matriz_esparsa, vectorizer = preprocessor.tfidf_vectorize(df_logs)
 
-    print(f"[{time.strftime('%H:%M:%S')}] 🧠 Rodando modelo de Detecção de Anomalias...")
-    df_resultado, modelo_treinado = anomaly_detector.process_log_anomalies(df_logs, matriz_esparsa)
+    # ==========================================
+    # NOVA LÓGICA DE TREINO E TESTE
+    # ==========================================
+    print(f"[{time.strftime('%H:%M:%S')}] 🔀 Dividindo os dados (80% Treino / 20% Teste)...")
+    
+    # O train_test_split divide o DataFrame e a Matriz Esparsa mantendo os índices alinhados
+    df_train, df_test, X_train, X_test = train_test_split(
+        df_logs, matriz_esparsa, test_size=0.2, random_state=42
+    )
+
+    print(f"[{time.strftime('%H:%M:%S')}] 🧠 Treinando modelo Isolation Forest (Fase 1)...")
+    # Passo 1: Chama a função passando model=None. Ele vai fazer o .fit() no X_train
+    # Ignoramos o dataframe de resultado do treino usando o "_"
+    _, modelo_treinado = anomaly_detector.process_log_anomalies(
+        df_original=df_train, 
+        X_tfidf=X_train, 
+        model=None 
+    )
+
+    print(f"[{time.strftime('%H:%M:%S')}] 🎯 Aplicando inferência e extraindo métricas (Fase 2)...")
+    # Passo 2: Busca a coluna de Ground Truth se existir nos datasets do Logpai.
+    # (Ajuste o nome 'Label' ou 'Anomaly' conforme o padrão da coluna no seu dataset)
+    # ==========================================
+    # BUSCA ROBUSTA PELO GROUND TRUTH (RÓTULO REAL)
+    # ==========================================
+    print(f"[{time.strftime('%H:%M:%S')}] 🔍 Verificando colunas disponíveis no dataset...")
+    colunas_dataset = df_test.columns.tolist()
+    print(f"Colunas: {colunas_dataset}")
+
+    # Lista de possíveis nomes para a coluna de anomalia nos datasets do Loghub
+    colunas_possiveis_label = ['Label', 'label', 'Anomaly', 'anomaly', 'Is_Anomaly', 'is_anomaly']
+    
+    # Encontra a primeira coluna da lista que exista no dataframe
+    coluna_alvo = next((col for col in colunas_possiveis_label if col in colunas_dataset), None)
+
+    if coluna_alvo:
+        print(f"[{time.strftime('%H:%M:%S')}] 🎯 Coluna de rótulo encontrada: '{coluna_alvo}'")
+        
+        # Garante que os rótulos estejam no formato numérico (0 para normal, 1 para anomalia)
+        # O Loghub frequentemente usa strings como "Normal", "Anomaly", "-", etc.
+        y_verdadeiro = df_test[coluna_alvo].apply(
+            lambda x: 1 if str(x).strip().lower() in ['anomaly', '1', 'true', 'anômalo', 'fail'] else 0
+        ).values
+    else:
+        print(f"[{time.strftime('%H:%M:%S')}] ⚠️ ALERTA: Nenhuma coluna de rótulo (Ground Truth) foi encontrada.")
+        print("-> As métricas de precisão, recall e matriz de confusão serão puladas.")
+        y_verdadeiro = None
+    # ==========================================
+
+    # Passo 3: Passamos o X_test para prever e o modelo_treinado
+    df_resultado, _ = anomaly_detector.process_log_anomalies(
+        df_original=df_test, 
+        X_tfidf=X_test, 
+        y_true=y_verdadeiro,
+        model=modelo_treinado 
+    )
+    # ==========================================
+
 
     # 1. Remove qualquer linha onde a coluna principal do log seja NaN ou nula
-    # (Troque 'Raw_Log' pelo nome da sua coluna de texto, se for diferente, como 'Event')
     df_resultado = df_resultado.dropna(subset=['Raw_Log'])
     
     # 2. Garante que os dados sejam texto e remove espaços em branco nas pontas
     df_resultado['Raw_Log'] = df_resultado['Raw_Log'].astype(str).str.strip()
     
-    # 3. Filtra e mantém APENAS as linhas que possuem algum conteúdo (remove strings vazias "")
+    # 3. Filtra e mantém APENAS as linhas que possuem algum conteúdo
     df_resultado = df_resultado[df_resultado['Raw_Log'] != ""]
     
-
-
-
-
-    
-    # 4. Agora sim, salva o Parquet limpo e enxuto
+    # 4. Salva o Parquet limpo e enxuto
     df_resultado.to_parquet(caminho_parquet, index=False)
-    #df_final.to_csv(caminho_parquet, index=False)
     print(f"[{time.strftime('%H:%M:%S')}] ✅ Processamento concluído! Salvo em: {caminho_parquet}")
+    
+     # [MARCADOR T1]: Detecção Concluída
+    # O Isolation Forest terminou de classificar o lote inteiro
+    tracker.mark_detected(lote_id)
 
-
+    print(f"[{time.strftime('%H:%M:%S')}] 🕸️ Iniciando correlação topológica em Grafos...")
+    
+    tracker.mark_isolated(lote_id)
+    # Obtém o dicionário com os resultados
+    resultados_metricas = tracker.calculate_results()
+    
+    # Imprime no terminal
+    print(f"[{time.strftime('%H:%M:%S')}] 📊 Métricas do Lote: {resultados_metricas}")
+    
+    # SALVA PARA O STREAMLIT LER
+    # Cria a pasta resultados se ela não existir (por segurança)
+    os.makedirs("resultados", exist_ok=True)
+    with open("resultados/metricas_rca.json", "w", encoding="utf-8") as f:
+        json.dump(resultados_metricas, f)
 # Variável global para guardar o processo do dashboard
 processo_dashboard = None
 
@@ -151,14 +224,14 @@ if __name__ == "__main__":
             # Roda a IA e gera o parquet
             processar_logs_em_lote()
             
-            print("⏳ Aguardando 10m (ou até o usuário mudar alguma configuração na tela)...\n")
+            print("⏳ Aguardando 200s (ou até o usuário mudar alguma configuração na tela)...\n")
             
             # Anota o horário que o JSON foi salvo pela última vez
             if os.path.exists("config.json"):
                 ultimo_json_modificado = os.path.getmtime("config.json")
             
-            # Loop de espera inteligente (60 vezes de 10 segundos = 600s)
-            for _ in range(60):
+            # Loop de espera inteligente (20 vezes de 10 segundos = 200s)
+            for _ in range(20):
                 time.sleep(10)
                 
                 # Se o arquivo existir, verifica se ele foi alterado agora
@@ -166,7 +239,7 @@ if __name__ == "__main__":
                     modificacao_atual = os.path.getmtime("config.json")
                     if modificacao_atual > ultimo_json_modificado:
                         print("\n🔔 Nova configuração detectada! Acordando o motor imediatamente...")
-                        break # Quebra a espera de 600s e volta para rodar a IA!
+                        break # Quebra a espera de 200s e volta para rodar a IA!
             
     except KeyboardInterrupt:
         print("\n🛑 Encerrando o sistema a pedido do usuário...")

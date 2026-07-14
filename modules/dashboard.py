@@ -1,51 +1,46 @@
 import os
 import time
-from datetime import date, datetime, time as dtime
+from datetime import date, datetime, time as dtime, timedelta
 import pandas as pd
 import streamlit as st
 import json
 import streamlit.components.v1 as components
-import pandas as pd
 
 # Importando APENAS o módulo de visualização
 import visualizer as visualizer
 
+# A configuração da página deve ser SEMPRE o primeiro comando Streamlit (fora do main)
 st.set_page_config(layout="wide", page_title="Detecção de Anomalias - TCC")
 
 PASTAS_DISPONIVEIS = [
-    "docker/meus_logs",
-    "logpai/Apache",  
-    "logpai/Linux",
-    "logpai/HDFS",
-    "logpai/OpenSSH",   
-    "logpai/Zookeeper",
+    # "docker/meus_logs",
+    # "logpai/Apache",  
+    # "logpai/Linux",
+    # "logpai/HDFS",
+    # "logpai/OpenSSH",   
+    # "logpai/Zookeeper",
     "minikube/k8s-chaos/logs"   
 ]
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_otimizado(caminho_arquivo, timestamp_modificacao):
     df = pd.read_parquet(caminho_arquivo)
-    
-    # Converte textos repetitivos para categorias (ocupa muito menos memória)
     if 'Source_Folder' in df.columns:
         df['Source_Folder'] = df['Source_Folder'].astype('category')
     if 'Level' in df.columns:
         df['Level'] = df['Level'].astype('category')
-        
     return df
 
 @st.cache_data(show_spinner="Calculando posições do grafo...")
 def gerar_grafo_otimizado(df_selecionado, tipo="normal"):
-    """Gera o grafo interativo e guarda na memória para não recalcular a física à toa"""
     if tipo == "normal":
         return visualizer.generate_interactive_network(df_selecionado)
     else:
         return visualizer.graph_spring_layout(df_selecionado)
 
 def main():
-
     # ==========================================
-    # CSS CUSTOMIZADO (Visual SOC / NOC Premium)
+    # 1. CSS E TÍTULO PRINCIPAL (Devem ser os primeiros a renderizar)
     # ==========================================
     st.markdown("""
         <style>
@@ -59,8 +54,8 @@ def main():
         div[data-testid="metric-container"] {
             background-color: rgba(15, 20, 30, 0.6);
             border: 1px solid #1F2937;
-            border-left: 4px solid #00F2FE; /* Barra lateral neon azul */
-            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.05); /* Brilho suave */
+            border-left: 4px solid #00F2FE;
+            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.05);
             padding: 15px 20px;
             border-radius: 6px;
             backdrop-filter: blur(4px);
@@ -91,64 +86,30 @@ def main():
         }
 
         /* 4. Esconder a "Sujeira" do Streamlit para parecer um App nativo */
-        header {visibility: hidden;} /* Esconde a barra superior colorida */
-        #MainMenu {visibility: hidden;} /* Esconde o menu sanduíche */
-        footer {visibility: hidden;} /* Esconde o rodapé "Made with Streamlit" */
-        
-        /* Remove o padding gigante do topo */
-        .block-container {
-            padding-top: 2rem !important;
-        }
+        header {visibility: hidden;}
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        .block-container { padding-top: 2rem !important; }
         </style>
     """, unsafe_allow_html=True)
 
     st.title("Anomaly Detection Dashboard for Logs 📊")
-    
-    
-    # ==========================================
-    # COMPONENTE JS: STATUS AO VIVO E RELÓGIO
-    # ==========================================
+
+    # COMPONENTE JS: STATUS AO VIVO E RELÓGIO (Mantive o seu código intacto)
     components.html(
         """
-        <div style="
-            display: flex; 
-            align-items: center; 
-            background-color: rgba(15, 20, 30, 0.8);
-            border: 1px solid #1F2937;
-            padding: 10px 20px;
-            border-radius: 5px;
-            color: #00F2FE; 
-            font-family: 'Courier New', monospace; 
-            font-size: 14px; 
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        ">
-            <div style="
-                width: 12px; 
-                height: 12px; 
-                background-color: #FF4B4B; 
-                border-radius: 50%; 
-                margin-right: 15px; 
-                box-shadow: 0 0 10px #FF4B4B; 
-                animation: blink 1.5s infinite;
-            "></div>
-            
+        <div style="display: flex; align-items: center; background-color: rgba(15, 20, 30, 0.8); border: 1px solid #1F2937; padding: 10px 20px; border-radius: 5px; color: #00F2FE; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">
+            <div style="width: 12px; height: 12px; background-color: #FF4B4B; border-radius: 50%; margin-right: 15px; box-shadow: 0 0 10px #FF4B4B; animation: blink 1.5s infinite;"></div>
             <span>SISTEMA DE DETECÇÃO ATIVO</span>
-            
             <span id="digital-clock" style="margin-left: auto; color: #FFFFFF; text-shadow: 0 0 5px rgba(255,255,255,0.5);"></span>
         </div>
-
         <script>
-            // Atualiza o relógio a cada segundo sem travar o Python
             setInterval(() => {
                 const now = new Date();
                 document.getElementById('digital-clock').innerText = now.toLocaleTimeString('pt-BR');
             }, 1000);
         </script>
-
         <style>
-            /* Animação do LED vermelho */
             @keyframes blink { 
                 0% { opacity: 1; transform: scale(1); }
                 50% { opacity: 0.3; transform: scale(0.9); }
@@ -156,16 +117,39 @@ def main():
             }
         </style>
         """, 
-        height=60 # Altura fixa para não criar barra de rolagem
+        height=60 
     )
-    # 1. IDENTIFICA O ARQUIVO DO DIA
+
+    # ==========================================
+    # 2. MÉTRICAS DE RCA (Lidas logo abaixo do título e do relógio)
+    # ==========================================
+    st.subheader("⏱️ Desempenho do RCA (Tempo Real)")
+    arquivo_metricas = "resultados/metricas_rca.json"
+
+    if os.path.exists(arquivo_metricas):
+        try:
+            with open(arquivo_metricas, "r", encoding="utf-8") as f:
+                metricas = json.load(f)
+                
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Incidentes Processados", metricas.get("Total_Incidentes", 0))
+            col2.metric("MTTD (Detecção)", f"{metricas.get('MTTD_Segundos', 0)}s")
+            col3.metric("MTTI (Investigação)", f"{metricas.get('MTTI_Segundos', 0)}s")
+            
+        except json.JSONDecodeError:
+            pass
+    else:
+        st.info("🔄 Aguardando o processamento do primeiro lote de logs para calcular as métricas de MTTD e MTTI...")
+
+    # ==========================================
+    # 3. LEITURA DO PARQUET E CONTINUAÇÃO DO FLUXO
+    # ==========================================
     today = date.today().strftime("%Y-%m-%d")
     arquivo_dados = f"resultados/resultado_tcc_{today}.parquet"
     
-    # 2. VERIFICA SE O ARQUIVO EXISTE ANTES DE TENTAR LER
     if not os.path.exists(arquivo_dados):
         st.warning("⚠️ Aguardando dados do Motor de Processamento...")
-        st.info(f"Certifique-se de que o arquivo `main.py` está rodando no terminal para gerar o arquivo.")
+        st.info("Certifique-se de que o arquivo `main.py` está rodando no terminal para gerar o arquivo.")
         time.sleep(5)
         st.rerun()
         return
@@ -174,6 +158,7 @@ def main():
     tempo_atual_csv = os.path.getmtime(arquivo_dados)
     df_final = carregar_dados_otimizado(arquivo_dados, tempo_atual_csv)
     
+    # ... AQUI CONTINUA O SEU CÓDIGO ORIGINAL (Prepara as variáveis de data, Sidebar, Filtros, etc.) ...
     # Prepara as variáveis de data com valores padrão de segurança
     data_min = date.today()
     data_max = date.today()
@@ -188,6 +173,21 @@ def main():
     
     
     
+    # ==========================================
+    # CÁLCULO DOS ÚLTIMOS 30 DIAS
+    # ==========================================
+    # Calcula 30 dias atrás a partir da data mais recente do dataset.
+    # O uso do 'max()' garante que não vamos tentar selecionar uma data mais antiga que o próprio 'data_min'.
+    data_inicio_padrao = max(data_min, data_max - timedelta(days=30))
+    
+    # Define a tupla padrão para o calendário
+    if data_min == data_max:
+        valor_calendario = data_max
+    else:
+        valor_calendario = (data_inicio_padrao, data_max)
+    # ==========================================
+
+
     with st.sidebar.form(key='filtro_form'):
         # --- 4. MENU LATERAL E FORMULÁRIO ---
         st.sidebar.header("Configurações Gerais")
@@ -206,8 +206,7 @@ def main():
             min_value=0.01, max_value=0.10, value=0.03, step=0.01
         )
         
-        valor_calendario = data_min if data_min == data_max else (data_min, data_max)
-        
+        # O calendário agora sempre abrirá focando na janela de 30 dias (ou menos, se não houver dados suficientes)
         datas_selecionadas = st.date_input(
             "Período (Dias):",
             value=valor_calendario,
@@ -276,9 +275,10 @@ def main():
         
         mask = (df_final[coluna_tempo] >= filtro_inicio) & (df_final[coluna_tempo] <= filtro_fim)
         df_final = df_final.loc[mask]
+
         
-    anomalias = df_final[df_final['is_anomaly'] == True]
-    normais = df_final[df_final['is_anomaly'] == False]
+    anomalias = df_final[df_final['pred_is_anomaly'] == True]
+    normais = df_final[df_final['pred_is_anomaly'] == False]
 
     # ==========================================
     # 7. RENDERIZAÇÃO PROGRESSIVA

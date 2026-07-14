@@ -13,8 +13,8 @@ def plot_anomaly_timeline_plotly(df):
     """Gera uma linha do tempo super otimizada para o navegador."""
     
     # 1. DOWNSAMPLING INTELIGENTE (O Segredo da Leveza)
-    anomalias = df[df['is_anomaly'] == True]
-    normais = df[df['is_anomaly'] == False]
+    anomalias = df[df['pred_is_anomaly'] == True]
+    normais = df[df['pred_is_anomaly'] == False]
     
     # Se houver mais de 5000 logs normais, pega uma amostra aleatória para não travar a tela
     if len(normais) > 5000:
@@ -39,7 +39,7 @@ def plot_anomaly_timeline_plotly(df):
         df_plot, 
         x=x_col, 
         y='anomaly_score', 
-        color='is_anomaly',
+        color='pred_is_anomaly',
         color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Cores mais vibrantes
         title="Linha do Tempo de Detecção de Anomalias",
         labels={x_col: x_label, 'anomaly_score': 'Decision Score (Gravidade)'},
@@ -81,8 +81,8 @@ def plot_anomaly_timeline_plotly(df):
 def plot_anomaly_distribution_plotly(df):
     """Gera um histograma interativo e super otimizado para a Web."""
     # 1. DOWNSAMPLING PARA O HISTOGRAMA
-    anomalias = df[df['is_anomaly'] == True]
-    normais = df[df['is_anomaly'] == False]
+    anomalias = df[df['pred_is_anomaly'] == True]
+    normais = df[df['pred_is_anomaly'] == False]
     
     # Reduz os normais para no máximo 5000 para não estourar a memória do JS
     if len(normais) > 5000:
@@ -96,7 +96,7 @@ def plot_anomaly_distribution_plotly(df):
     fig = px.histogram(
         df_plot, 
         x='anomaly_score', 
-        color='is_anomaly', 
+        color='pred_is_anomaly', 
         barmode='overlay',
         color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Mesmas cores da timeline
         title="Distribuição dos Scores de Anomalia (Amostra Otimizada)",
@@ -125,16 +125,16 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
     coluna_texto = 'Template' if 'Template' in df.columns else 'Event'
 
     # 1. Mais bolinhas: Aumentamos de 20 para 45 de cada tipo (Total de até 90 bolinhas na tela)
-    top_anomalias = df[df['is_anomaly'] == True][coluna_texto].value_counts().head(100)
-    top_normais = df[df['is_anomaly'] == False][coluna_texto].value_counts().head(100)
+    top_anomalias = df[df['pred_is_anomaly'] == True][coluna_texto].value_counts().head(100)
+    top_normais = df[df['pred_is_anomaly'] == False][coluna_texto].value_counts().head(100)
 
     nodes_info = []
     
     for texto, freq in top_anomalias.items():
-        nodes_info.append({'texto': str(texto), 'freq': freq, 'is_anomaly': True})
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': True})
         
     for texto, freq in top_normais.items():
-        nodes_info.append({'texto': str(texto), 'freq': freq, 'is_anomaly': False})
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': False})
 
     if not nodes_info:
         return None
@@ -146,8 +146,8 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
     for i, info in enumerate(nodes_info):
         label_curto = textwrap.shorten(info['texto'], width=40, placeholder="...")
         
-        cor = '#FF6B6B' if info['is_anomaly'] else "#1BBB06" 
-        status_txt = "🔴 ANOMALIA" if info['is_anomaly'] else "🟢 NORMAL"
+        cor = '#FF6B6B' if info['pred_is_anomaly'] else "#1BBB06" 
+        status_txt = "🔴 ANOMALIA" if info['pred_is_anomaly'] else "🟢 NORMAL"
         
         # Crescimento suavizado (usando raiz quadrada **) para não ficar gigante
         # Tamanho base é 10.
@@ -225,16 +225,16 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     coluna_texto = 'Template' if 'Template' in df.columns else 'Event'
 
     # 1. Preparação dos nós (mantida a sua lógica original)
-    top_anomalias = df[df['is_anomaly'] == True][coluna_texto].value_counts().head(100)
-    top_normais = df[df['is_anomaly'] == False][coluna_texto].value_counts().head(100)
+    top_anomalias = df[df['pred_is_anomaly'] == True][coluna_texto].value_counts().head(100)
+    top_normais = df[df['pred_is_anomaly'] == False][coluna_texto].value_counts().head(100)
 
     nodes_info = []
     
     for texto, freq in top_anomalias.items():
-        nodes_info.append({'texto': str(texto), 'freq': freq, 'is_anomaly': True})
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': True})
         
     for texto, freq in top_normais.items():
-        nodes_info.append({'texto': str(texto), 'freq': freq, 'is_anomaly': False})
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': False})
 
     if not nodes_info:
         return None
@@ -245,8 +245,8 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     # 2. Criar os Nós
     for i, info in enumerate(nodes_info):
         label_curto = textwrap.shorten(info['texto'], width=40, placeholder="...")
-        cor = '#FF6B6B' if info['is_anomaly'] else "#1BBB06" 
-        status_txt = "🔴 ANOMALIA" if info['is_anomaly'] else "🟢 NORMAL"
+        cor = '#FF6B6B' if info['pred_is_anomaly'] else "#1BBB06" 
+        status_txt = "🔴 ANOMALIA" if info['pred_is_anomaly'] else "🟢 NORMAL"
         
         tamanho_calculado = 10 + (info['freq'] ** 0.5) * 1.5 
         tamanho = min(tamanho_calculado, 25)
@@ -269,7 +269,8 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
             for i in range(len(linhas_unicas)):
                 for j in range(i + 1, len(linhas_unicas)):
                     sim = matriz_similaridade[i, j]
-                    if sim > 0.05:
+                    #Realizado aumento do threshold de similaridade para 50% para reduzir a quantidade de linhas e deixar o grafo mais limpo
+                    if sim > 0.50:
                         G.add_edge(i, j, weight=sim * 8, title=f"Similaridade: {sim:.0%}")
         except ValueError:
             pass
@@ -287,13 +288,13 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     var options = {
       "physics": {
         "forceAtlas2Based": {
-          "gravitationalConstant": -400, 
-          "centralGravity": 0.005,       
-          "springLength": 350,           
-          "springConstant": 0.04,        
+          "gravitationalConstant": -200, 
+          "centralGravity": 0.01,       
+          "springLength": 200,           
+          "springConstant": 0.08,        
           "avoidOverlap": 1              
         },
-        "minVelocity": 0.75,
+        "minVelocity": 0.3,
         "solver": "forceAtlas2Based"
       }
     }

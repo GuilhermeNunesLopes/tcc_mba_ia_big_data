@@ -153,8 +153,8 @@ start_port_forward "chaos-mesh" "chaos-mesh"  "chaos-dashboard" "2333:2333"
 # ── 4. Abre os navegadores ────────────────────────────────────────────────────
 log "4/4 — Abrindo interfaces no navegador..."
 sleep 1
-open_browser "http://localhost:8080"
-open_browser "http://localhost:2333"
+open_browser "http://127.0.0.1:8080"
+open_browser "http://127.0.0.1:2333"
 
 # ── 5. Chaos runner (opcional) ────────────────────────────────────────────────
 if ! $NO_CHAOS; then
