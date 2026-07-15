@@ -22,7 +22,7 @@ eval "$(minikube docker-env)"
 
 log "3/5 — Build da imagem demo-app:latest..."
 docker build -t demo-app:latest "$PROJECT_DIR/app/"
-docker build -t chaos-log-app:latest "$PROJECT_DIR/app/Dockerfile2"
+docker build -t chaos-log-app:latest -f "$PROJECT_DIR/app/Dockerfile2" "$PROJECT_DIR/app/"
 
 log "4/5 — Aplicando deployment e service..."
 kubectl apply -f "$PROJECT_DIR/k8s/deployment.yaml"

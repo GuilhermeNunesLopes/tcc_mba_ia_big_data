@@ -11,7 +11,16 @@ if kubectl version --client > /dev/null 2>&1; then
 else
  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-fi        
+fi       
+
+if helm version > /dev/null 2>&1; then
+  echo "helm já instalado."
+else
+ curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
+ chmod 700 get_helm.sh
+ ./get_helm.sh
+fi    
+
 
 # Inicia o cluster com 2 CPUs e 4GB de RAM
 minikube start --cpus=2 --memory=4096
@@ -24,8 +33,9 @@ minikube dashboard &
   
 
 #app
-# 1. Descompacte e dê permissão em todos os scripts de uma vez
-unzip k8s-chaos.zip && cd k8s-chaos
+## 1. Descompacte e dê permissão em todos os scripts de uma vez
+#unzip k8s-chaos.zip && cd k8s-chaos
+cd k8s-chaos
 chmod +x scripts/*.sh
 
 # 2. Setup completo — só na primeira vez

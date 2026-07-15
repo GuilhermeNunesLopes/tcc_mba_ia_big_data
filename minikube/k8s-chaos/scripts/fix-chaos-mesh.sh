@@ -75,7 +75,8 @@ success "   Namespace 'chaos-mesh' recriado."
 
 # ── 4. Instala CRDs manualmente primeiro ─────────────────────────────────────
 log "4/6 — Instalando CRDs do Chaos Mesh manualmente..."
-kubectl apply -f https://mirrors.chaos-mesh.org/v2.6.3/crd.yaml
+#kubectl apply -f https://mirrors.chaos-mesh.org/v2.6.3/crd.yaml
+kubectl apply --server-side --force-conflicts -f https://mirrors.chaos-mesh.org/v2.6.3/crd.yaml
 
 log "   Aguardando CRDs ficarem estabelecidos..."
 sleep 5

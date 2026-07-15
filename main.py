@@ -78,7 +78,8 @@ def processar_logs_em_lote():
         df_logs['Source'] = df_logs['Source_Folder'] 
         df_logs['Level'] = "INFO"
         
-    matriz_esparsa, vectorizer = preprocessor.tfidf_vectorize(df_logs)
+
+    matriz_tfidf, vectorizer = preprocessor.tfidf_vectorize(df_logs)
 
     # ==========================================
     # NOVA LÓGICA DE TREINO E TESTE
@@ -86,18 +87,33 @@ def processar_logs_em_lote():
     print(f"[{time.strftime('%H:%M:%S')}] 🔀 Dividindo os dados (80% Treino / 20% Teste)...")
     
     # O train_test_split divide o DataFrame e a Matriz Esparsa mantendo os índices alinhados
-    df_train, df_test, X_train, X_test = train_test_split(
-        df_logs, matriz_esparsa, test_size=0.2, random_state=42
+    df_train, df_test, X_train_tfidf, X_test_tfidf = train_test_split(
+        df_logs, matriz_tfidf, test_size=0.2, random_state=42
     )
 
+    # ==========================================
+    # REDUÇÃO DE DIMENSIONALIDADE (SVD)
+    # ==========================================
+    print(f"[{time.strftime('%H:%M:%S')}] 📉 Reduzindo dimensionalidade (TruncatedSVD)...")
+    
+    # 1. Treina o SVD apenas nos dados de treino (passando svd_model=None)
+    X_train, modelo_svd = preprocessor.apply_truncated_svd(X_train_tfidf, svd_model=None, n_components=150)
+    
+    # 2. Aplica a mesma redução nos dados de teste usando o modelo já treinado
+    X_test, _ = preprocessor.apply_truncated_svd(X_test_tfidf, svd_model=modelo_svd)
+
+    # A partir daqui, X_train e X_test já são matrizes densas menores e muito mais 
+    # ricas em informação útil para a próxima etapa.
+
     print(f"[{time.strftime('%H:%M:%S')}] 🧠 Treinando modelo Isolation Forest (Fase 1)...")
-    # Passo 1: Chama a função passando model=None. Ele vai fazer o .fit() no X_train
-    # Ignoramos o dataframe de resultado do treino usando o "_"
+    # Passo 1: Chama a função passando model=None. Ele vai fazer o .fit() no X_train denso
     _, modelo_treinado = anomaly_detector.process_log_anomalies(
         df_original=df_train, 
         X_tfidf=X_train, 
         model=None 
     )
+    
+    # ... O resto do seu código continua exatamente igual a partir daqui ...
 
     print(f"[{time.strftime('%H:%M:%S')}] 🎯 Aplicando inferência e extraindo métricas (Fase 2)...")
     # Passo 2: Busca a coluna de Ground Truth se existir nos datasets do Logpai.

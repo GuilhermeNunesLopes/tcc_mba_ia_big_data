@@ -7,9 +7,10 @@ import json
 import signal
 import os
 import uuid
+from pathlib import Path
 
 # Configuração do diretório e arquivo de logs
-LOG_DIR = "k8s-chaos/logs"
+LOG_DIR    = Path("/app/logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "app_operation.log")
 

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: python-app
-        image: chaos-log-app:v1
+        image: chaos-log-app:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8087
@@ -24,7 +24,7 @@ spec:
         workingDir: /app
         volumeMounts:
         - name: local-logs-volume
-          mountPath: /app/k8s-chaos/logs
+          mountPath: /app/logs
         resources:
           requests:
             memory: "64Mi"
@@ -36,5 +36,18 @@ spec:
       - name: local-logs-volume
         hostPath:
           # Substitua este caminho pelo caminho absoluto na sua máquina host
-          path: minikube/k8s-chaos/logs
+          path: /tmp/chaos-log-app-logs
           type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chaos-log-app-svc
+  namespace: default
+spec:
+  selector:
+    app: chaos-log-app
+  ports:
+  - port: 80
+    targetPort: 8087
+  type: NodePort

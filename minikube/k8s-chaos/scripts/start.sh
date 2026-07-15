@@ -148,7 +148,7 @@ success "App demo-app: $(kubectl get pods -l app=demo-app --no-headers | grep -c
 # ── 3. Port-forwards ──────────────────────────────────────────────────────────
 log "3/4 — Iniciando port-forwards..."
 start_port_forward "app"        "default"     "demo-app-svc"  "8080:80"
-start_port_forward "chaos-log-app" "default"     "chaos-log-app-svc"  "8087:80" 
+start_port_forward "app"        "default"     "chaos-log-app-svc"  "8087:80"
 start_port_forward "chaos-mesh" "chaos-mesh"  "chaos-dashboard" "2333:2333"
 
 # ── 4. Abre os navegadores ────────────────────────────────────────────────────
@@ -173,9 +173,10 @@ fi
 # ── Resumo ────────────────────────────────────────────────────────────────────
 separator
 echo ""
-echo -e "  ${GRN}App demo:${RST}       http://localhost:8080"
-echo -e "  ${GRN}Chaos Log App:${RST}  http://localhost:8087"
-echo -e "  ${GRN}Chaos Mesh:${RST}     http://localhost:2333"
+echo -e "  ${GRN}Chaos Log:${RST}      http://127.0.0.1:8087"
+echo -e "  ${GRN}App demo:${RST}       http://127.0.0.1:8080"
+echo -e "  ${GRN}Chaos Mesh:${RST}     http://127.0.0.1:2333"
+
 if ! $NO_CHAOS; then
 echo -e "  ${GRN}Chaos runner:${RST}   intervalo de ${INTERVAL}s  |  log: logs/chaos-runner.log"
 fi

@@ -6,6 +6,8 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, contamination="auto"):
     """
     Identifica anomalias em logs numéricos e calcula métricas se o ground truth for fornecido.
+    
+    y_true: Série ou array com os rótulos REAIS das anomalias (1 para anomalia, 0 para normal).
     """
     df_result = df_original.copy()
     
@@ -15,6 +17,7 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, contami
     if model is None:
         print("Treinando Isolation Forest com dados fornecidos...")
         model = IsolationForest(
+            # test de parâmetros: https://scikit-learn.org/stable/auto_examples/ensemble/plot_isolation_forest.html
             n_estimators=300,       
             max_samples='auto',
             contamination=contamination, 
@@ -27,21 +30,23 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, contami
     predictions = model.predict(X_tfidf)
     decision_scores = model.decision_function(X_tfidf)
 
+    # Scikit-Learn: 1 = Normal, -1 = Anomalia. Vamos converter para 0 (Normal) e 1 (Anomalia) 
+    # para ficar no padrão clássico de métricas binárias.
     df_result['pred_is_anomaly'] = (predictions == -1).astype(int)
     df_result['anomaly_score'] = decision_scores
     
-    # Adicionamos o y_true ao DataFrame ANTES de calcular ou ordenar qualquer coisa
+    df_result = df_result.sort_values(by='anomaly_score', ascending=True)
+    
+    # Só calcula métricas se você tiver o Ground Truth para comparar
     if y_true is not None:
-        # Garante compatibilidade caso y_true seja Series ou array
-        df_result['y_true_label'] = y_true.values if isinstance(y_true, pd.Series) else y_true
-        
         print("\n" + "="*30)
         print("Avaliação do Modelo vs Ground Truth:")
         
-        metrix_confusion = confusion_matrix(df_result['y_true_label'], df_result['pred_is_anomaly'])
-        precision = precision_score(df_result['y_true_label'], df_result['pred_is_anomaly'], zero_division=0)
-        recall = recall_score(df_result['y_true_label'], df_result['pred_is_anomaly'], zero_division=0)
-        f1 = f1_score(df_result['y_true_label'], df_result['pred_is_anomaly'], zero_division=0)
+        # Garante que y_true está no formato correto (1 para anomalia, 0 normal)
+        metrix_confusion = confusion_matrix(y_true, df_result['pred_is_anomaly'])
+        precision = precision_score(y_true, df_result['pred_is_anomaly'], zero_division=0)
+        recall = recall_score(y_true, df_result['pred_is_anomaly'], zero_division=0)
+        f1 = f1_score(y_true, df_result['pred_is_anomaly'], zero_division=0)
 
         print("Matriz de Confusão:")
         print(metrix_confusion)
@@ -53,8 +58,5 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, contami
     print("Contagem de Previsões:")
     print(df_result['pred_is_anomaly'].value_counts())
     print("\n" + "="*30)
-    
-    # Agora é seguro ordenar o DataFrame final pelo score
-    df_result = df_result.sort_values(by='anomaly_score', ascending=True)
     
     return df_result, model

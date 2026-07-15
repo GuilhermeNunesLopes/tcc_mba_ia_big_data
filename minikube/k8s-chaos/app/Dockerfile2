@@ -1,5 +1,4 @@
-# Usa uma imagem Python leve
-FROM python:3.11-alpine
+FROM python:3.11-slim
 
 # Define o diretório de trabalho
 WORKDIR /app
@@ -9,6 +8,6 @@ COPY app2.py .
 
 # Define que o output do Python não deve usar buffer (garante que os logs apareçam imediatamente)
 ENV PYTHONUNBUFFERED=1
-
+RUN mkdir -p /app/logs
 # Comando para rodar a aplicação
 CMD ["python", "app2.py"]

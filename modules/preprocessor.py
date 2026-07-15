@@ -3,6 +3,8 @@ import re
 import pandas as pd
 import scipy.sparse as sp
 from scipy.sparse import issparse
+from sklearn.decomposition import TruncatedSVD
+import numpy as np
 
 def clean_log_text(text):
     # Usando prefixos de texto puro para evitar problemas com o tokenizador padrão do TF-IDF
@@ -51,14 +53,36 @@ def tfidf_vectorize(df, vectorizer=None):
         # Modo Teste/Inferência: Apenas aplica o vocabulário já aprendido
         tfidf_matrix = vectorizer.transform(df_clean['combined'])
 
-    # 5. Criar DataFrame (Cuidado com memória em datasets gigantes)
-    # Se a matriz for muito grande, o ideal é usar a matriz esparsa direto no modelo ML
-    # Desativado a matriz densa afim de melhorar o processamento.
-    # tfidf_df = pd.DataFrame(
-    #    tfidf_matrix.toarray(), 
-    #    columns=vectorizer.get_feature_names_out(),
-    #    index=df_clean.index
-    #)
-    
-    # Retorna a matriz esparsa E o Vectorizer
+
     return tfidf_matrix, vectorizer
+
+def apply_truncated_svd(tfidf_matrix, svd_model=None, n_components=200):
+    """
+    Reduz a dimensionalidade da matriz esparsa usando TruncatedSVD (LSA).
+    
+    Retorna uma matriz densa (numpy array), ideal para algoritmos de clusterização.
+    Se 'svd_model' for None, cria e ajusta o modelo (Treino).
+    Se passado, apenas transforma os dados (Teste/Inferência).
+    """
+    # Verifica se a matriz está vazia para evitar erros
+    if tfidf_matrix.shape[0] == 0:
+        return np.array([]), svd_model
+
+    if svd_model is None:
+        # Modo Treino: Cria o modelo e ajusta aos dados
+        # O número de componentes deve ser menor que o max_features do TF-IDF
+        n_components = min(n_components, tfidf_matrix.shape[1] - 1)
+        
+        svd_model = TruncatedSVD(n_components=n_components, random_state=42)
+        X_reduced = svd_model.fit_transform(tfidf_matrix)
+        
+        # Log útil para o seu TCC: quanta informação os componentes retiveram
+        variancia_explicada = svd_model.explained_variance_ratio_.sum() * 100
+        print(f"SVD Treinado! {n_components} componentes explicam {variancia_explicada:.2f}% da variância dos logs.")
+        
+    else:
+        # Modo Teste/Inferência: Aplica a transformação já aprendida
+        X_reduced = svd_model.transform(tfidf_matrix)
+
+    # O retorno X_reduced é um array denso padrão, pronto para K-Means ou Isolation Forest
+    return X_reduced, svd_model
