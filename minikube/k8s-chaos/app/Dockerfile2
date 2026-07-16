@@ -1,13 +1,15 @@
 FROM python:3.11-slim
 
-# Define o diretório de trabalho
 WORKDIR /app
 
-# Copia o código para dentro do container
+# Instala FastAPI e uvicorn (adicionados para a interface web)
+RUN pip install fastapi uvicorn --no-cache-dir
+
 COPY app2.py .
 
-# Define que o output do Python não deve usar buffer (garante que os logs apareçam imediatamente)
+# Garante que os logs apareçam imediatamente no stdout
 ENV PYTHONUNBUFFERED=1
+
 RUN mkdir -p /app/logs
-# Comando para rodar a aplicação
+
 CMD ["python", "app2.py"]

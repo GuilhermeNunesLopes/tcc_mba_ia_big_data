@@ -13,7 +13,7 @@ import visualizer as visualizer
 st.set_page_config(layout="wide", page_title="Detecção de Anomalias - TCC")
 
 PASTAS_DISPONIVEIS = [
-    # "docker/meus_logs",
+    "docker/meus_logs",
     # "logpai/Apache",  
     # "logpai/Linux",
     # "logpai/HDFS",
@@ -203,7 +203,7 @@ def main():
         
         contamination = st.slider(
             "Taxa de Contaminação (Anomalias)", 
-            min_value=0.01, max_value=0.10, value=0.03, step=0.01
+            min_value=0.01, max_value=0.10, value=0.05, step=0.01
         )
         
         # O calendário agora sempre abrirá focando na janela de 30 dias (ou menos, se não houver dados suficientes)
@@ -292,8 +292,9 @@ def main():
     col3.metric("Logs Normais", len(normais))
 
     st.markdown("---")
-    st.subheader("Visualizações")
+    st.subheader("Visualizações do Pipeline")
 
+    # Primeira Linha de Gráficos (Linha do Tempo e Distribuição)
     col_graf1, col_graf2 = st.columns(2)
     with col_graf1:
         fig_timeline = visualizer.plot_anomaly_timeline_plotly(df_final)
@@ -302,7 +303,30 @@ def main():
     with col_graf2:
         fig_dist = visualizer.plot_anomaly_distribution_plotly(df_final)
         st.plotly_chart(fig_dist, use_container_width=True)
-
+        
+    # ==========================================
+    # Histórico de Evolução Operacional
+    # ==========================================
+    st.markdown("---")
+    st.subheader("Evolução Operacional (Histórico)")
+    
+    # Dividindo a tela em duas colunas para os históricos
+    col_hist1, col_hist2 = st.columns(2)
+    
+    with col_hist1:
+        fig_hist = visualizer.plot_metricas_historico()
+        if fig_hist:
+            st.plotly_chart(fig_hist, use_container_width=True)
+        else:
+            st.info("Aguardando agrupamentos válidos para gerar o histórico do Silhouette Score.")
+            
+    with col_hist2:
+        fig_mttd = visualizer.plot_mttd_mtti_historico()
+        if fig_mttd:
+            st.plotly_chart(fig_mttd, use_container_width=True)
+        else:
+            st.info("Aguardando lotes processados para gerar o histórico de MTTD/MTTI.")
+            
     st.markdown("---")
     st.markdown("### Grafo de Semelhança de Logs")
     
@@ -329,17 +353,23 @@ def main():
                     st.info("Não há anomalias suficientes para o grafo Spring.")
 
     st.markdown("---")
-    st.subheader("Validação Especialista (Precision @ Top 85%)")
+    st.subheader("Validação Especialista (Precision @ K)")
     
-    if auto_refresh:
-        st.warning("⚠️ O painel está em modo 'Tempo Real'. Para auditar os falsos positivos, desligue o interruptor no Menu.")
-
     if not anomalias.empty:
-        k_valor = max(1, int(len(anomalias) * 0.85))
-        top_k_logs = anomalias.nsmallest(k_valor, 'anomaly_score').copy()
-        top_k_logs['É Falha Real?'] = True
+        # Define o K dinamicamente pelo painel (padrão: Top 20)
+        k_selecionado = st.slider("Selecione o valor de K (Top N Logs mais críticos):", min_value=5, max_value=100, value=20, step=5)
         
+        # O Isolation Forest retorna scores menores (negativos) para anomalias severas
+        k_valor = min(k_selecionado, len(anomalias))
+        top_k_logs = anomalias.nsmallest(k_valor, 'anomaly_score').copy()
+        
+        # Inicia todos como "Falso Positivo" até o especialista validar
+        top_k_logs['É Falha Real?'] = False 
+        
+        st.write(f"Audite os {k_valor} logs com maior índice de anomalia:")
         colunas_mostrar = ['É Falha Real?', 'Source_Folder', 'Template', 'anomaly_score']
+        
+        # O SRE marca os checkboxes direto na tela
         df_editado = st.data_editor(
             top_k_logs[colunas_mostrar],
             hide_index=True,
@@ -347,11 +377,13 @@ def main():
             disabled=['Source_Folder', 'Template', 'anomaly_score'] 
         )
         
+        # Calcula a métrica final
         acertos = df_editado['É Falha Real?'].sum()
-        precisao_k = acertos / k_valor
+        precisao_k = acertos / k_valor if k_valor > 0 else 0
         
-        st.info(f"**Resultado:** De **{k_valor}** logs avaliados, o especialista validou **{acertos}** como falhas reais.")
-        st.metric(f"Métrica Precision", f"{precisao_k:.1%}")
+        col1, col2 = st.columns(2)
+        col1.info(f"**Resultado:** De **{k_valor}** logs avaliados, você validou **{acertos}** como falhas reais.")
+        col2.metric(f"Métrica Precision@{k_valor}", f"{precisao_k:.1%}")
     else:
         st.success("Nenhuma anomalia para validar neste período.")
 

@@ -5,7 +5,7 @@ metadata:
   labels:
     app: chaos-log-app
 spec:
-  replicas: 1 # Mantido em 1 para concentrar os logs no mesmo arquivo durante o teste
+  replicas: 1
   selector:
     matchLabels:
       app: chaos-log-app
@@ -17,10 +17,10 @@ spec:
       containers:
       - name: python-app
         image: chaos-log-app:latest
-        imagePullPolicy: IfNotPresent
+        # Never = usa a imagem buildada localmente no Minikube (IfNotPresent causava ErrImagePull)
+        imagePullPolicy: Never
         ports:
         - containerPort: 8087
-        # Define o diretório de trabalho para que o caminho relativo 'k8s-chaos/logs' funcione corretamente
         workingDir: /app
         volumeMounts:
         - name: local-logs-volume
@@ -32,10 +32,25 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "100m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8087
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8087
+          initialDelaySeconds: 10
+          periodSeconds: 10
       volumes:
       - name: local-logs-volume
         hostPath:
-          # Substitua este caminho pelo caminho absoluto na sua máquina host
+          # Os logs ficam dentro da VM do Minikube em /tmp/chaos-log-app-logs
+          # Para copiar para sua máquina Windows, use o comando abaixo:
+          #   minikube ssh "cat /tmp/chaos-log-app-logs/app_operation.log"
+          # Ou monte via: minikube mount F:/Guilherme/MBA\ Documentos/tcc_mba_ia_big_data/minikube/logs:/tmp/chaos-log-app-logs
           path: /tmp/chaos-log-app-logs
           type: DirectoryOrCreate
 ---
@@ -50,4 +65,5 @@ spec:
   ports:
   - port: 80
     targetPort: 8087
+    nodePort: 30087
   type: NodePort

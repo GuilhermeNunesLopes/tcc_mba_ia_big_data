@@ -117,8 +117,8 @@ step_remove_app() {
     return
   fi
 
-  kubectl delete deployment demo-app   -n "$NAMESPACE" --ignore-not-found=true
-  kubectl delete service   demo-app-svc -n "$NAMESPACE" --ignore-not-found=true
+  kubectl delete deployments,statefulsets,daemonsets,jobs --all
+
 
   # Aguarda os pods terminarem
   log "  Aguardando pods encerrarem..."

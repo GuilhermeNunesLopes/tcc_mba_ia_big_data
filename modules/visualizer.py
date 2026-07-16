@@ -8,24 +8,23 @@ from sklearn.metrics.pairwise import cosine_similarity
 import textwrap
 import streamlit as st
 import pandas as pd
+import os
+import json
 
 def plot_anomaly_timeline_plotly(df):
-    """Gera uma linha do tempo super otimizada para o navegador."""
+    """Gera uma linha do tempo super otimizada com cores de alto contraste."""
     
-    # 1. DOWNSAMPLING INTELIGENTE (O Segredo da Leveza)
-    anomalias = df[df['pred_is_anomaly'] == True]
-    normais = df[df['pred_is_anomaly'] == False]
+    anomalias = df[df['pred_is_anomaly'] == True].copy()
+    normais = df[df['pred_is_anomaly'] == False].copy()
     
-    # Se houver mais de 5000 logs normais, pega uma amostra aleatória para não travar a tela
     if len(normais) > 5000:
-        normais_amostra = normais.sample(n=5000, random_state=42)
-    else:
-        normais_amostra = normais
+        normais = normais.sample(n=5000, random_state=42)
         
-    # Junta de novo para plotar (Anomalias completas + Amostra de normais)
-    df_plot = pd.concat([anomalias, normais_amostra])
+    df_plot = pd.concat([anomalias, normais])
     
-    # Prepara as colunas (mesma lógica que fizemos antes)
+    # Adiciona uma coluna para forçar as anomalias a serem bolinhas MAIORES no gráfico
+    df_plot['tamanho_ponto'] = df_plot['pred_is_anomaly'].apply(lambda x: 12 if x else 5)
+    
     tem_timestamp = 'Timestamp' in df_plot.columns
     x_col = 'Timestamp' if tem_timestamp else df_plot.index
     x_label = 'Tempo (Hora do Log)' if tem_timestamp else 'Sequência dos Logs'
@@ -34,41 +33,25 @@ def plot_anomaly_timeline_plotly(df):
     if 'Template' in df_plot.columns: hover_cols.append('Template')
     if 'Source_Folder' in df_plot.columns: hover_cols.append('Source_Folder')
 
-    # Cria a figura base usando o df_plot (que é muito menor e mais rápido)
     fig = px.scatter(
         df_plot, 
         x=x_col, 
         y='anomaly_score', 
         color='pred_is_anomaly',
-        color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Cores mais vibrantes
+        # Cores Fortes: Verde brilhante para normal, Vermelho Alerta para anomalias
+        color_discrete_map={False: '#00FF00', True: '#FF0000'}, 
+        size='tamanho_ponto', # Aplica a diferença de tamanho
         title="Linha do Tempo de Detecção de Anomalias",
         labels={x_col: x_label, 'anomaly_score': 'Decision Score (Gravidade)'},
         hover_data=hover_cols,
-        opacity=0.5, # Deixa os pontos levemente transparentes para sobreposição ficar bonita
         render_mode='webgl'
     )
     
-    if tem_timestamp:
-        df_sorted = df_plot.sort_values(by='Timestamp')
-        line_x = df_sorted['Timestamp']
-        line_y = df_sorted['anomaly_score']
-    else:
-        line_x = df_plot.index
-        line_y = df_plot['anomaly_score']
-        
-    fig.add_trace(go.Scatter(
-        x=line_x, 
-        y=line_y, 
-        mode='lines', 
-        line=dict(color='#1f77b4', width=1, dash='dot'),
-        showlegend=False,
-        opacity=0.2
-    ))
-    
-    # Estilização do Fundo do Gráfico (Deixa ele transparente para casar com o Streamlit)
+    # Estilização Hacker/SRE (Fundo escuro nativo)
     fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='#0E1117',
         paper_bgcolor='rgba(0,0,0,0)',
+        font_color='white',
         xaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)'),
         yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)')
     )
@@ -77,6 +60,49 @@ def plot_anomaly_timeline_plotly(df):
         fig.update_xaxes(rangeslider_visible=True)
         
     return fig
+
+def plot_metricas_historico(historico_path="resultados/historico_metricas.json"):
+    """Gera um gráfico de linha mostrando a evolução das métricas ao longo dos lotes."""
+    if not os.path.exists(historico_path):
+        return None
+        
+    try:
+        with open(historico_path, 'r', encoding='utf-8') as f:
+            dados = json.load(f)
+            
+        df_hist = pd.DataFrame(dados)
+        
+        if df_hist.empty or 'Silhouette_Score' not in df_hist.columns:
+            return None
+            
+        # Remove os lotes onde não houve clusterização (NaN)
+        df_hist = df_hist.dropna(subset=['Silhouette_Score'])
+        
+        if df_hist.empty:
+            return None
+            
+        fig = px.line(
+            df_hist, 
+            x='Timestamp_Lote', 
+            y='Silhouette_Score',
+            markers=True,
+            title="Evolução do Silhouette Score (Qualidade da Clusterização)",
+            labels={'Timestamp_Lote': 'Horário do Lote', 'Silhouette_Score': 'Silhouette Score (Coesão)'}
+        )
+        
+        # Linha azul neon com marcadores vermelhos
+        fig.update_traces(line_color='#00F2FE', marker=dict(size=10, color='#FF4B4B'))
+        
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            yaxis=dict(range=[-1, 1]) # O Score sempre varia de -1 a 1
+        )
+        return fig
+    except Exception as e:
+        print(f"Erro ao plotar histórico: {e}")
+        return None
 
 def plot_anomaly_distribution_plotly(df):
     """Gera um histograma interativo e super otimizado para a Web."""
@@ -305,3 +331,49 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     net.save_graph(output_path)
 
     return output_path
+
+def plot_mttd_mtti_historico(historico_path="resultados/historico_metricas.json"):
+    """Gera um gráfico de linha comparando a evolução do MTTD e MTTI ao longo do tempo."""
+    if not os.path.exists(historico_path):
+        return None
+        
+    try:
+        with open(historico_path, 'r', encoding='utf-8') as f:
+            dados = json.load(f)
+            
+        df_hist = pd.DataFrame(dados)
+        
+        # Verifica se o arquivo tem os dados necessários
+        if df_hist.empty or 'MTTD_Segundos' not in df_hist.columns:
+            return None
+            
+        fig = px.line(
+            df_hist, 
+            x='Timestamp_Lote', 
+            y=['MTTD_Segundos', 'MTTI_Segundos'], # Passando as duas métricas juntas
+            markers=True,
+            title="Evolução do Tempo de Resposta a Incidentes (RCA)",
+            labels={
+                'Timestamp_Lote': 'Horário do Lote', 
+                'value': 'Tempo em Segundos',
+                'variable': 'Métrica'
+            }
+        )
+        
+        # Estilizando as linhas (MTTD em Amarelo, MTTI em Laranja)
+        fig.update_traces(marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey')))
+        
+        # Fundo transparente e adequação ao tema
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            legend_title_text='Fases do RCA',
+            xaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)'),
+            yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)')
+        )
+        return fig
+        
+    except Exception as e:
+        print(f"Erro ao plotar histórico MTTD/MTTI: {e}")
+        return None

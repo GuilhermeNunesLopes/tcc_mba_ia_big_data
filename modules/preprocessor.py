@@ -7,10 +7,16 @@ from sklearn.decomposition import TruncatedSVD
 import numpy as np
 
 def clean_log_text(text):
-    # Usando prefixos de texto puro para evitar problemas com o tokenizador padrão do TF-IDF
-    text = re.sub(r'0x[0-9a-fA-F]+', 'TAG_HEX', str(text))
-    text = re.sub(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', 'TAG_IP', text) # Regex mais preciso para IP
+    text = str(text)
+    # Mascara UUIDs clássicos (ex: 550e8400-e29b-41d4-a716-446655440000)
+    text = re.sub(r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b', 'TAG_UUID', text)
+    # Sua limpeza original
+    text = re.sub(r'0x[0-9a-fA-F]+', 'TAG_HEX', text)
+    text = re.sub(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', 'TAG_IP', text) 
     text = re.sub(r'\b\d+\b', 'TAG_NUM', text)
+    # Mascara caminhos de arquivos ou URLs que variam muito
+    text = re.sub(r'(http|https)://[^\s]*', 'TAG_URL', text)
+    text = re.sub(r'/[a-zA-Z0-9_./-]+', 'TAG_PATH', text)
     return text.lower()
 
 def tfidf_vectorize(df, vectorizer=None):
@@ -42,11 +48,12 @@ def tfidf_vectorize(df, vectorizer=None):
         vectorizer = TfidfVectorizer(
         #Diminui o numero de feature afim de reduzir o vocabulário lido, pois logs são muito repetitivos
         #max_features=1000,
-        max_features=300,
+        #max_features=300,
+        max_features=100,
+        #ngram_range=(1, 2),
         # modificando de para pegar unigramas ao invés de bigramas, visto que rodar issso desse jeito está gerando muitos dados
-        ngram_range=(1, 2),
-        #ngram_range=(1, 1),
-            stop_words=None
+        ngram_range=(1, 1),
+        stop_words='english'
         )
         tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
     else:
@@ -56,7 +63,7 @@ def tfidf_vectorize(df, vectorizer=None):
 
     return tfidf_matrix, vectorizer
 
-def apply_truncated_svd(tfidf_matrix, svd_model=None, n_components=200):
+def apply_truncated_svd(tfidf_matrix, svd_model=None, n_components=100):
     """
     Reduz a dimensionalidade da matriz esparsa usando TruncatedSVD (LSA).
     

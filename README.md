@@ -1,3 +1,6 @@
+Aqui está o arquivo pronto para você copiar e colar no seu `README.md`:
+
+```markdown
 # Detecção de Anomalias em Logs para Root Cause em Microsserviços
 
 ![AIOps](https://img.shields.io/badge/Focus-AIOps-blueviolet)
@@ -34,10 +37,10 @@ O motor de inferência foi projetado com foco em alta performance e redução de
 
 ## 🎯 Objetivos
 
-1.  **Automatizar** o processo de identificação de logs anômalos.
-2.  **Reduzir o MTTD e MTTI**, agilizando a resposta a incidentes de forma sistêmica.
-3.  **Demonstrar eficácia** na detecção de eventos operacionais complexos utilizando métodos matemáticos não supervisionados.
-4.  **Otimizar recursos**, diminuindo a fadiga de alertas e garantindo o cumprimento de **SLAs**.
+1. **Automatizar** o processo de identificação de logs anômalos.
+2. **Reduzir o MTTD e MTTI**, agilizando a resposta a incidentes de forma sistêmica.
+3. **Demonstrar eficácia** na detecção de eventos operacionais complexos utilizando métodos matemáticos não supervisionados.
+4. **Otimizar recursos**, diminuindo a fadiga de alertas e garantindo o cumprimento de **SLAs**.
 
 ## 📊 Dashboard de Observabilidade
 
@@ -65,49 +68,66 @@ pip install -r requirements.txt
 
 ```
 
-#### Faça o dowloand do Docker Compose:
+#### Faça o download do Docker Compose:
+
 ```bash
-apt get install docker-compose 
+apt-get install docker-compose 
+# ou
 yum install docker-compose
+
 ```
+
 ### Inicialização do Sistema Base
+
 O projeto possui um orquestrador central que sobe a interface web e mantém o motor analítico em background.
+
 ```bash
 python main.py
 
 ```
-⚠️ O painel do Streamlit será aberto automaticamente no seu navegador na porta 8501.
+
+> ⚠️ O painel do Streamlit será aberto automaticamente no seu navegador na porta 8501.
 
 ### Rodando em Ambiente Docker (Recomendado)
+
 Para simular a infraestrutura localmente e gerar falhas:
 
-1. - Suba os containers da aplicação:
+1. Suba os containers da aplicação:
+
 ```bash
 docker-compose -f docker/docker-compose.yml up -d --build 
 # ou 
 docker compose -f docker/docker-compose.yml up -d --force-recreate
 
 ```
-1. Execução do docker controlada (Sobe por 10min e derruba):
+
+2. Execução do docker controlada (Sobe por 10min e derruba):
+
 ```bash
 docker compose -f docker/docker-compose.yml up -d ; sleep 10m ; docker compose -f docker/docker-compose.yml down
 
 ```
-1. Injeção de Caos (Pumba) - Comandos para forçar erros e anomalias na infra:
+
+3. Injeção de Caos (Pumba) - Comandos para forçar erros e anomalias na infra:
+
 ```bash
 # Derrubar a API abruptamente
 docker exec pumba pumba kill --signal SIGKILL api
 
 # Inserir atraso de rede (Delay de 3000ms)
 docker exec pumba pumba netem --duration 30s delay --time 3000 api
+
 ```
-1.Clean Up (Limpeza Geral):
+
+4. Clean Up (Limpeza Geral):
 
 ```bash
 cd docker ; docker-compose down --remove-orphans ; docker container prune -f; docker builder prune -f
+
 ```
 
 ### Rodando via Minikube (Kubernetes)
+
 Para testes focados em orquestração de contêineres:
 
 ```bash
@@ -120,6 +140,12 @@ cd minikube
 
 # Para destruir o ambiente
 ./delete-minikube.sh
+
 ```
-#Contato
+
+---
+
+## 📬 Contato
+
 guilherme.lopes13@hotmail.com
+
