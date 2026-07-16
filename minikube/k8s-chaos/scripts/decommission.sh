@@ -97,7 +97,7 @@ step_remove_chaos_experiments() {
     if [[ "$COUNT" -gt 0 ]]; then
       FOUND=true
       log "  Removendo $COUNT $KIND..."
-      kubectl delete "$KIND" --all -n "$NAMESPACE" --ignore-not-found=true
+      kubectl delete "$KIND" --all -n "$NAMESPACE" --ignore-not-found=true --grace-period=0 --force --wait=false
     fi
   done
 
