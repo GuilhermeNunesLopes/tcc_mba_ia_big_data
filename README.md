@@ -1,6 +1,3 @@
-Aqui está o arquivo pronto para você copiar e colar no seu `README.md`:
-
-```markdown
 # Detecção de Anomalias em Logs para Root Cause em Microsserviços
 
 ![AIOps](https://img.shields.io/badge/Focus-AIOps-blueviolet)
