@@ -131,11 +131,17 @@ def main():
             with open(arquivo_metricas, "r", encoding="utf-8") as f:
                 metricas = json.load(f)
                 
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             col1.metric("Incidentes Processados", metricas.get("Total_Incidentes", 0))
             col2.metric("MTTD (Detecção)", f"{metricas.get('MTTD_Segundos', 0)}s")
             col3.metric("MTTI (Investigação)", f"{metricas.get('MTTI_Segundos', 0)}s")
             
+            # Lê a PR-AUC. Se não houver Ground Truth, exibe N/A
+            pr_auc_val = metricas.get("PR_AUC")
+            if pr_auc_val is not None:
+                col4.metric("PR-AUC (Qualidade)", f"{pr_auc_val:.1%}")
+            else:
+                col4.metric("PR-AUC (Qualidade)", "N/A (Sem Rótulos)")
         except json.JSONDecodeError:
             pass
     else:
@@ -277,9 +283,11 @@ def main():
         df_final = df_final.loc[mask]
 
         
-    anomalias = df_final[df_final['pred_is_anomaly'] == True]
-    normais = df_final[df_final['pred_is_anomaly'] == False]
+    #anomalias = df_final[df_final['pred_is_anomaly'] == True]
+    #normais = df_final[df_final['pred_is_anomaly'] == False]
 
+    anomalias = df_final[df_final['pred_is_anomaly'] == 1]
+    normais = df_final[df_final['pred_is_anomaly'] == 0]
     # ==========================================
     # 7. RENDERIZAÇÃO PROGRESSIVA
     # ==========================================

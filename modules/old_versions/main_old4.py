@@ -15,8 +15,6 @@ from modules.mttd_mtti import RCA_MetricsTracker
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import DBSCAN
 from sklearn.metrics import silhouette_score
-import scipy.sparse as sp
-from sklearn.preprocessing import StandardScaler
 
 # Iniciando o Tracking do MTTI E MTTR
 tracker = RCA_MetricsTracker()
@@ -117,42 +115,16 @@ def processar_logs_em_lote():
         print(f"[{time.strftime('%H:%M:%S')}] ⏸️ Todos os logs deste lote eram conhecidos (Whitelist). Aguardando novos logs...")
         return
     # ==========================================
-    print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features: Calculando Contexto Temporal...")
-    
-
-    # 1. Garantir que a coluna Timestamp seja datetime e remover nulos
-    df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
-    df_logs = df_logs.dropna(subset=['Timestamp'])
-
-    # 2. ORDENAR por pasta e por tempo (Isso previne o erro de index duplicado)
-    df_logs = df_logs.sort_values(by=['Source_Folder', 'Timestamp']).reset_index(drop=True)
-
-    # 3. Delta de tempo em segundos em relação ao log anterior
-    df_logs['time_delta'] = df_logs.groupby('Source_Folder')['Timestamp'].diff().dt.total_seconds().fillna(0)
-
-    # 4. Taxa de logs nos últimos 5 minutos (Usamos .values para injetar direto, ignorando o index)
-    temp_indexed = df_logs.set_index('Timestamp')
-    df_logs['log_rate_5m'] = temp_indexed.groupby('Source_Folder')['Raw_Log'].rolling('5min').count().values
-
-    # 5. Voltar a ordenar apenas pelo tempo cronológico global para o Machine Learning
-    df_logs = df_logs.sort_values(by='Timestamp').reset_index(drop=True)
-
-    # -------------------------------------------------
 
     # O código original segue daqui em diante com os logs "limpos"
     matriz_tfidf, vectorizer = preprocessor.tfidf_vectorize(df_logs)
     
-    # Normaliza as colunas numéricas temporais para a mesma escala
-    scaler = StandardScaler()
-    features_temporais = scaler.fit_transform(df_logs[['time_delta', 'log_rate_5m']])
-    
-    matriz_combinada = sp.hstack((matriz_tfidf, sp.csr_matrix(features_temporais)))
     # ==========================================
     # NOVA LÓGICA DE TREINO E TESTE
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] 🔀 Dividindo os dados (80% Treino / 20% Teste)...")
     df_train, df_test, X_train_tfidf, X_test_tfidf = train_test_split(
-        df_logs, matriz_combinada, test_size=0.2, random_state=42
+        df_logs, matriz_tfidf, test_size=0.2, random_state=42
     )
 
     # Ajuste T0: Tenta capturar a hora real do erro mais antigo deste lote para métricas precisas
@@ -165,15 +137,16 @@ def processar_logs_em_lote():
     # REDUÇÃO DE DIMENSIONALIDADE (SVD)
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] 📉 Reduzindo dimensionalidade (TruncatedSVD)...")
-
     
+    X_train, modelo_svd = preprocessor.apply_truncated_svd(X_train_tfidf, svd_model=None, n_components=30)
+    X_test, _ = preprocessor.apply_truncated_svd(X_test_tfidf, svd_model=modelo_svd)
+
     print(f"[{time.strftime('%H:%M:%S')}] 🧠 Treinando modelo Isolation Forest (Fase 1)...")
-    _, modelo_treinado, _ = anomaly_detector.process_log_anomalies(
+    _, modelo_treinado = anomaly_detector.process_log_anomalies(
         df_original=df_train, 
         X_tfidf=X_train, 
         contamination=taxa_contaminacao_ativa,
-        model=None,
-        anomaly_percentile=2.5
+        model=None 
     )
     
     print(f"[{time.strftime('%H:%M:%S')}] 🎯 Aplicando inferência e extraindo métricas (Fase 2)...")
@@ -194,7 +167,7 @@ def processar_logs_em_lote():
         y_verdadeiro = None
 
     # Aplicação do modelo
-    df_resultado, _, metricas_ml= anomaly_detector.process_log_anomalies(
+    df_resultado, _ = anomaly_detector.process_log_anomalies(
         df_original=df_test, 
         X_tfidf=X_test, 
         y_true=y_verdadeiro,
@@ -246,10 +219,7 @@ def processar_logs_em_lote():
     # Injeta a Silhouette Score se houver agrupamento válido
     if score_silhueta is not None:
         resultados_metricas["Silhouette_Score"] = round(float(score_silhueta), 4)
-    
-    if metricas_ml:
-        resultados_metricas.update(metricas_ml)
-        
+
     # Adiciona a data e hora do lote para o eixo X do gráfico de histórico
     resultados_metricas["Timestamp_Lote"] = time.strftime('%Y-%m-%d %H:%M:%S')
 

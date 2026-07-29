@@ -10,3 +10,6 @@ chmod +x scripts/decommission.sh
 
 # Remove tudo mas preserva a pasta logs/
 ./scripts/decommission.sh --full --keep-logs
+
+minikube stop
+minikube delete --all --purge

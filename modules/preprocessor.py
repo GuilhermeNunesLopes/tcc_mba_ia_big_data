@@ -8,15 +8,98 @@ import numpy as np
 
 def clean_log_text(text):
     text = str(text)
-    # Mascara UUIDs clássicos (ex: 550e8400-e29b-41d4-a716-446655440000)
-    text = re.sub(r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b', 'TAG_UUID', text)
-    # Sua limpeza original
-    text = re.sub(r'0x[0-9a-fA-F]+', 'TAG_HEX', text)
-    text = re.sub(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', 'TAG_IP', text) 
-    text = re.sub(r'\b\d+\b', 'TAG_NUM', text)
-    # Mascara caminhos de arquivos ou URLs que variam muito
-    text = re.sub(r'(http|https)://[^\s]*', 'TAG_URL', text)
-    text = re.sub(r'/[a-zA-Z0-9_./-]+', 'TAG_PATH', text)
+
+    # ==========================
+    # Identificadores únicos
+    # ==========================
+
+    # UUID
+    text = re.sub(
+        r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b',
+        'TAG_UUID',
+        text
+    )
+
+    # Hexadecimal
+    text = re.sub(
+        r'0x[0-9a-fA-F]+',
+        'TAG_HEX',
+        text
+    )
+
+    # IPv4
+    text = re.sub(
+        r'\b\d{1,3}(?:\.\d{1,3}){3}\b',
+        'TAG_IP',
+        text
+    )
+
+    # URL
+    text = re.sub(
+        r'https?://[^\s]+',
+        'TAG_URL',
+        text
+    )
+
+    # Caminhos
+    text = re.sub(
+        r'/[A-Za-z0-9_.\-/]+',
+        'TAG_PATH',
+        text
+    )
+
+    # ==========================
+    # Preserva informações importantes
+    # ==========================
+
+    # HTTP Status Code
+    text = re.sub(
+        r'\b([1-5]\d{2})\b',
+        r'HTTP_\1',
+        text
+    )
+
+    # Oracle
+    text = re.sub(
+        r'ORA-\d+',
+        'TAG_ORACLE_ERROR',
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # SQLSTATE
+    text = re.sub(
+        r'SQLSTATE\s+[A-Z0-9]+',
+        'TAG_SQLSTATE',
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # Java Exceptions
+    text = re.sub(
+        r'\b[A-Za-z0-9_]*Exception\b',
+        'TAG_EXCEPTION',
+        text
+    )
+
+    # Erros Unix/Linux (errno)
+    text = re.sub(
+        r'errno=\d+',
+        'TAG_ERRNO',
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # ==========================
+    # Mascara números restantes
+    # ==========================
+
+    text = re.sub(
+        r'\b\d+\b',
+        'TAG_NUM',
+        text
+    )
+
     return text.lower()
 
 def tfidf_vectorize(df, vectorizer=None):
@@ -38,9 +121,11 @@ def tfidf_vectorize(df, vectorizer=None):
     df_clean['Event_Clean'] = df_clean['Event'].apply(clean_log_text)
     
     # 3. Combinar as colunas
-    df_clean['combined'] = df_clean['Level'].astype(str) + ' ' + \
-                           df_clean['Source'].astype(str) + ' ' + \
-                           df_clean['Event_Clean'].astype(str)
+    df_clean["combined"] = (
+        "LEVEL_" + df_clean["Level"].astype(str) +
+        " SOURCE_" + df_clean["Source"].astype(str) +
+        " EVENT_" + df_clean["Event_Clean"].astype(str)
+)
 
     # 4. Treino ou Teste do Vectorizer
     if vectorizer is None:
@@ -49,18 +134,33 @@ def tfidf_vectorize(df, vectorizer=None):
         #Diminui o numero de feature afim de reduzir o vocabulário lido, pois logs são muito repetitivos
         #max_features=1000,
         #max_features=300,
-        max_features=100,
-        #ngram_range=(1, 2),
+        #max_features=500,
+        max_features=850,
+        ngram_range=(1, 3),#mudando para pegar unigramas, bigramas e trigramas, visto que logs podem ter palavras repetidas e isso pode gerar mais features
         # modificando de para pegar unigramas ao invés de bigramas, visto que rodar issso desse jeito está gerando muitos dados
-        ngram_range=(1, 1),
-        stop_words='english'
+        #ngram_range=(1, 1),
+        #stop_words='english',
+        stop_words=None,
+        sublinear_tf=True,
+        #min_df=2,  # Ignora termos que aparecem em menos de 2 logs
+        min_df=2,  # Ignora termos que aparecem em menos de 3 log
+        #max_df=0.95,
+        max_df=0.95,  # Ignora termos que aparecem em mais de 85% dos logs
+        token_pattern=r'(?u)\b[\w.-]+\b',
+        strip_accents="unicode", #Adiciona suporte a acentos, visto que logs podem ter palavras com acentos
         )
         tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
+
+        density = (tfidf_matrix.nnz /(tfidf_matrix.shape[0] * tfidf_matrix.shape[1]))  # nnz = número de elementos não nulos
+
+        print(f"Densidade TF-IDF: {density:.4%}")
     else:
         # Modo Teste/Inferência: Apenas aplica o vocabulário já aprendido
         tfidf_matrix = vectorizer.transform(df_clean['combined'])
 
-
+    print("TF-IDF Matrix shape:", tfidf_matrix.shape)
+    #print("Feature names (vocabulary) do TF-IDF:")
+    #print(vectorizer.get_feature_names_out())
     return tfidf_matrix, vectorizer
 
 def apply_truncated_svd(tfidf_matrix, svd_model=None, n_components=100):
@@ -80,7 +180,7 @@ def apply_truncated_svd(tfidf_matrix, svd_model=None, n_components=100):
         # O número de componentes deve ser menor que o max_features do TF-IDF
         n_components = min(n_components, tfidf_matrix.shape[1] - 1)
         
-        svd_model = TruncatedSVD(n_components=n_components, random_state=42)
+        svd_model = TruncatedSVD(n_components=n_components, random_state=43)
         X_reduced = svd_model.fit_transform(tfidf_matrix)
         
         # Log útil para o seu TCC: quanta informação os componentes retiveram

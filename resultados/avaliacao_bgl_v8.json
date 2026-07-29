@@ -1,0 +1,24 @@
+{
+  "metricas_percentil_fixo": {
+    "PR_AUC": 0.22760372353632663,
+    "Precision": 0.45454545454545453,
+    "Recall": 0.14705882352941177,
+    "F1_Score": 0.2222222222222222
+  },
+  "comparacao_estrategias": [
+    {
+      "Estratégia": "Percentil fixo 1.5% (atual)",
+      "Precision": 0.45454545454545453,
+      "Recall": 0.14705882352941177,
+      "F1": 0.2222222222222222,
+      "Qtd_Prevista_Anomalia": 11
+    },
+    {
+      "Estratégia": "predict() nativo (contamination='auto')",
+      "Precision": 0.0,
+      "Recall": 0.0,
+      "F1": 0.0,
+      "Qtd_Prevista_Anomalia": 185
+    }
+  ]
+}

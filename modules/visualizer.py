@@ -14,13 +14,15 @@ import json
 def plot_anomaly_timeline_plotly(df):
     """Gera uma linha do tempo super otimizada com cores de alto contraste."""
     
-    anomalias = df[df['pred_is_anomaly'] == True].copy()
-    normais = df[df['pred_is_anomaly'] == False].copy()
-    
+    #anomalias = df[df['pred_is_anomaly'] == True].copy()
+    #normais = df[df['pred_is_anomaly'] == False].copy()
+    anomalias = df[df['pred_is_anomaly'] == 1].copy()
+    normais = df[df['pred_is_anomaly'] == 0].copy()
+
     if len(normais) > 5000:
         normais = normais.sample(n=5000, random_state=42)
         
-    df_plot = pd.concat([anomalias, normais])
+    df_plot = pd.concat([normais, anomalias])
     
     # Adiciona uma coluna para forçar as anomalias a serem bolinhas MAIORES no gráfico
     df_plot['tamanho_ponto'] = df_plot['pred_is_anomaly'].apply(lambda x: 12 if x else 5)
@@ -107,9 +109,11 @@ def plot_metricas_historico(historico_path="resultados/historico_metricas.json")
 def plot_anomaly_distribution_plotly(df):
     """Gera um histograma interativo e super otimizado para a Web."""
     # 1. DOWNSAMPLING PARA O HISTOGRAMA
-    anomalias = df[df['pred_is_anomaly'] == True]
-    normais = df[df['pred_is_anomaly'] == False]
-    
+    #anomalias = df[df['pred_is_anomaly'] == True]
+    #normais = df[df['pred_is_anomaly'] == False]
+    anomalias = df[df['pred_is_anomaly'] == 1]
+    normais = df[df['pred_is_anomaly'] == 0]
+
     # Reduz os normais para no máximo 5000 para não estourar a memória do JS
     if len(normais) > 5000:
         normais_amostra = normais.sample(n=5000, random_state=42)
@@ -257,10 +261,10 @@ def graph_spring_layout(df, output_path="temp_graph_spring.html"):
     nodes_info = []
     
     for texto, freq in top_anomalias.items():
-        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': True})
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': 1})
         
     for texto, freq in top_normais.items():
-        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': False})
+        nodes_info.append({'texto': str(texto), 'freq': freq, 'pred_is_anomaly': 0})
 
     if not nodes_info:
         return None

@@ -37,10 +37,10 @@ def optimize_isolation_forest(X_train, y_train):
     #    "bootstrap": [True], #melhor config
     #}
     param_grid = {
-    "n_estimators": [300, 500],
-    "max_samples": [256, 512],
-    "max_features": [0.2, 0.5], 
-    "bootstrap": [False]
+        "n_estimators": [100, 200, 300],
+        "max_samples": [0.5, 0.8, "auto"], # Uso de frações para suportar a redução drástica de linhas do Windowing
+        "max_features": [0.8, 1.0],
+        "bootstrap": [False],
     }
 
     best_model = None
@@ -70,7 +70,7 @@ def optimize_isolation_forest(X_train, y_train):
 
         taxas_anomalia = np.array([(scores_v >= t).mean() for t in thresholds])
         fbeta_scores[taxas_anomalia > 0.10] = 0.0
-
+        
         idx = np.argmax(fbeta_scores)
         current_threshold = thresholds[idx]
         pred_v = (scores_v >= current_threshold).astype(int)
