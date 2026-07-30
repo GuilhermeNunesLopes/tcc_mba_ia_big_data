@@ -136,18 +136,23 @@ def tfidf_vectorize(df, vectorizer=None):
         #max_features=300,
         #max_features=500,
         max_features=850,
-        ngram_range=(1, 3),#mudando para pegar unigramas, bigramas e trigramas, visto que logs podem ter palavras repetidas e isso pode gerar mais features
+        #ngram_range=(1, 3),#mudando para pegar unigramas, bigramas e trigramas, visto que logs podem ter palavras repetidas e isso pode gerar mais features
+        ngram_range=(1, 2),
         # modificando de para pegar unigramas ao invés de bigramas, visto que rodar issso desse jeito está gerando muitos dados
         #ngram_range=(1, 1),
         #stop_words='english',
         stop_words=None,
         sublinear_tf=True,
+        use_idf=False,
         #min_df=2,  # Ignora termos que aparecem em menos de 2 logs
-        min_df=2,  # Ignora termos que aparecem em menos de 3 log
+        #min_df=3,  # Ignora termos que aparecem em menos de 3 log
+        min_df=1,
         #max_df=0.95,
         max_df=0.95,  # Ignora termos que aparecem em mais de 85% dos logs
         token_pattern=r'(?u)\b[\w.-]+\b',
         strip_accents="unicode", #Adiciona suporte a acentos, visto que logs podem ter palavras com acentos
+        binary=True,        # Foco na presença do token, não na frequência
+        norm='l2'           # Padroniza vetores longos e curtos matematicamente
         )
         tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
 

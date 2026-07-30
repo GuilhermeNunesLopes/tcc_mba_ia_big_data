@@ -38,8 +38,8 @@ def optimize_isolation_forest(X_train, y_train):
     #}
     param_grid = {
     "n_estimators": [300, 500],
-    "max_samples": [256, 512],
-    "max_features": [0.2, 0.5], 
+    "max_samples": [256, 512,"auto"],
+    "max_features": [0.2, 0.5, 1.0], 
     "bootstrap": [False]
     }
 

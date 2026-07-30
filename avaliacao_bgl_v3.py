@@ -38,7 +38,9 @@ from sklearn.metrics import (
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import modules.preprocessor as preprocessor
 import modules.anomaly_detector as anomaly_detector
+import modules.parse_system as parse_system
 import numpy as np
+import tempfile
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 
@@ -54,23 +56,50 @@ SVD_COMPONENTS = [15, 30, 50] # mesmo valor usado em main.py
 #SVD_COMPONENTS=[300]#melhor avaliado no BGL, com F1=0.88, PR-AUC=0.91, Precision=0.92, Recall=0.85
 
 def carregar_bgl_rotulado(caminho: str = CAMINHO_BGL) -> pd.DataFrame:
+    print("\n[0/4] Acionando parse_system.py para extrair templates na mosca...")
     df = pd.read_csv(caminho)
 
+    # 1. Cria um arquivo temporário com o texto cru (Content)
+    # Como a sua função exige um file_path físico, criamos um na memória
+    fd, temp_path = tempfile.mkstemp(text=True, suffix=".log")
+    with open(fd, 'w', encoding='utf-8') as f:
+        for linha in df["Content"]:
+            # Escreve apenas o corpo da mensagem
+            f.write(str(linha) + "\n")
+
+    # 2. Chama a SUA função de parse nativa
+    print("Processando arquivo temporário com o Drain3...")
+    df_parsed = parse_system.automatic_drain_parse(
+        file_path=temp_path,
+        nome_fonte="BGL_Eval" # Passa o nome para criar o state separado, conforme sua função exige
+    )
+    
+    # 3. Limpa o arquivo temporário do sistema operacional
+    os.remove(temp_path)
+
+    # Verifica se o parse retornou a mesma quantidade de linhas
+    if len(df_parsed) != len(df):
+        raise ValueError("Ocorreu um erro: o parse_system devolveu um número diferente de linhas.")
+
+    # 4. Substitui o template antigo do LogHub pelo template gerado pelo SEU código
     df_padronizado = pd.DataFrame({
         "Timestamp": pd.to_datetime(df["Timestamp"], unit="s"),
         "Level": df["Level"].astype(str),
         "Source": df["Component"].astype(str),
-        "Event": df["EventTemplate"].astype(str),
+        "Event": df_parsed["Template"].astype(str),  # <--- O template limpo pelo seu Drain3
         
-        # O SEGREDO AQUI: Substituir o texto cru (Content) pelo template limpo!
-        # Isso reduz a dimensionalidade do TF-IDF drasticamente e foca no padrão do erro.
-        "Raw_Log": df["EventTemplate"].astype(str), 
+        # Mantemos a Técnica 1: Concatenar Level (Severidade) + Evento limpo
+        "Raw_Log": df["Level"].astype(str) + " " + df_parsed["Template"].astype(str),
         
         "Label_Original": df["Label"].astype(str),
     })
 
+    # Criação do Ground Truth (y_true)
     df_padronizado["y_true"] = (df_padronizado["Label_Original"] != "-").astype(int)
+    
+    # Ordenação cronológica
     df_padronizado = df_padronizado.sort_values("Timestamp").reset_index(drop=True)
+    
     return df_padronizado
 
 def agrupar_por_janela_de_tempo(df: pd.DataFrame, tamanho_janela: str = '1min') -> pd.DataFrame:
@@ -124,30 +153,21 @@ def dividir_cronologicamente(df: pd.DataFrame, fracao_treino: float = FRACAO_TRE
 def main():
     print("=" * 62)
     print("AVALIAÇÃO CIENTÍFICA — Pipeline de Detecção de Anomalias")
-    print("Abordagem: Janelas de Tempo (Time Windows)")
+    print("Abordagem: Linha a Linha (com Parse Drain3 na mosca)")
     print("=" * 62)
 
-    # 1. Carrega os logs originais linha a linha
+    # 1. Carrega os logs originais linha a linha e faz o parse (Cria o arquivo temporário e chama o Drain3)
     df_bruto = carregar_bgl_rotulado()
     
-    # ========================================================
-    # 2. A MÁGICA ACONTECE AQUI: Transforma linhas em Janelas
-    # Como BGL_2k é um dataset pequeno (amostra de 2 mil linhas), 
-    # usar janelas de '30S' (segundos) ou '1min' é ideal para não 
-    # ficarmos com poucos dados de treino.
-    # ========================================================
-    #df_janelas = agrupar_por_janela_de_tempo(df_bruto, tamanho_janela='1min')
-    df_janelas = agrupar_por_janela_de_tempo(df_bruto, tamanho_janela='5S') # 5 Segundos
-    # 3. Faz o split cronológico SOBRE AS JANELAS (e não sobre as linhas)
-    #df_train, df_test = dividir_cronologicamente(df_janelas)
+    # 2. Faz o split cronológico DIRETAMENTE SOBRE AS LINHAS (SEM JANELA DE TEMPO)
+    df_train, df_test = dividir_cronologicamente(df_bruto)
     
-    #print("\nSplit CRONOLÓGICO por Janelas:")
-    #print(f"  Treino: {len(df_train)} janelas | anomalias: {df_train['y_true'].sum()}")
-    #print(f"  Teste:  {len(df_test)} janelas | anomalias: {df_test['y_true'].sum()}")
-
+    print("\nSplit CRONOLÓGICO:")
+    print(f"  Treino: {len(df_train)} logs | anomalias: {df_train['y_true'].sum()}")
+    print(f"  Teste:  {len(df_test)} logs | anomalias: {df_test['y_true'].sum()}")
 
     # ==========================================
-    # Mesmo pipeline de features usado em main.py
+    # Vetorização TF-IDF
     # ==========================================
     print("\n[1/4] Vetorização TF-IDF (fit no treino, transform no teste)...")
     X_train_tfidf, vectorizer = preprocessor.tfidf_vectorize(df_train)
@@ -190,12 +210,9 @@ def main():
     print("\nMelhor configuração encontrada")
     print(f"F1: {metricas['F1_Score']:.4f}")
     
-    metricas = best_metrics
-    modelo_treinado = best_model
-    df_resultado = best_df_resultado
-    X_test = X_test_final # Define o X_test para o ablation mais abaixo
+    # ATRIBUIÇÃO CORRETA PARA O CÓDIGO DE PLOTAGEM ABAIXO
+    X_test = X_test_final 
     
-
     print("\n" + "=" * 62)
     print("RESULTADO — métricas reais contra o ground truth do BGL")
     print("=" * 62)
@@ -219,7 +236,7 @@ def main():
     pred_predict_nativo = (modelo_treinado.predict(X_test) == -1).astype(int)
 
     comparacao = pd.DataFrame({
-        "Estratégia": ["Percentil fixo 1.5% (atual)", "predict() nativo (contamination='auto')"],
+        "Estratégia": ["Threshold Otimizado pelo F-Beta", "predict() nativo (contamination='auto')"],
         "Precision": [
             metricas["Precision"],
             precision_score(y_true, pred_predict_nativo, zero_division=0),
