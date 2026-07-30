@@ -171,7 +171,9 @@ def main():
     coluna_tempo = 'Timestamp' 
     
     if coluna_tempo in df_final.columns:
-        df_final[coluna_tempo] = pd.to_datetime(df_final[coluna_tempo], errors='coerce')
+        # pd.to_datetime converte a string, e dt.tz_localize(None) remove o fuso horário (UTC)
+        df_final[coluna_tempo] = pd.to_datetime(df_final[coluna_tempo], errors='coerce').dt.tz_localize(None)
+        
         df_final = df_final.dropna(subset=[coluna_tempo])
         if not df_final.empty:
             data_min = df_final[coluna_tempo].min().date()

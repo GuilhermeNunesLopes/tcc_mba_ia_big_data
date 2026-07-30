@@ -7,23 +7,16 @@ import json
 import platform
 import atexit
 
-# Importando apenas os módulos de processamento e IA
+# Importando apenas os módulos de processamento e IA (sem o dashboard)
 import modules.parse_system as parse_system
 import modules.preprocessor as preprocessor
 import modules.anomaly_detector as anomaly_detector
-import modules.dashboard as dashboard
-import modules.visualizer as visualizer
 from modules.mttd_mtti import RCA_MetricsTracker
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import DBSCAN
 from sklearn.metrics import silhouette_score
 import scipy.sparse as sp
 from sklearn.preprocessing import StandardScaler
-
-# ==========================================
-# ⚙️ SELETOR DE ALGORITMO (ALTERE AQUI)
-# Escolha "iforest" (Isolation Forest) ou "ocsvm" (One-Class SVM)
-# ==========================================
 
 # Iniciando o Tracking do MTTI E MTTR
 tracker = RCA_MetricsTracker()
@@ -156,22 +149,9 @@ def processar_logs_em_lote():
     # ==========================================
     # FASE 1: TREINAMENTO DO MODELO
     # ==========================================
-    print(f"[{time.strftime('%H:%M:%S')}] 🧠 Treinando modelo {ALGORITMO_ATIVO.upper()}...")
-    
-    # Desempacota as 5 variáveis (incluindo o threshold que será herdado pelo Teste)
-    _, modelo_treinado, _, _, threshold_treinado = anomaly_detector.process_log_anomalies(
-        df_original=df_train, 
-        X_tfidf=X_train, 
-        contamination=taxa_contaminacao_ativa,
-        model=None,
-        algorithm=ALGORITMO_ATIVO # Injeta o algoritmo escolhido no topo do script
-    )
-    
-    # ==========================================
-    # FASE 1: TREINAMENTO DO MODELO
-    # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] 🧠 Treinando modelo {algoritmo_ativo.upper()}...")
     
+    # Desempacota as 5 variáveis (incluindo o threshold que será herdado pelo Teste)
     _, modelo_treinado, _, _, threshold_treinado = anomaly_detector.process_log_anomalies(
         df_original=df_train, 
         X_tfidf=X_train, 
@@ -185,7 +165,17 @@ def processar_logs_em_lote():
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] 🎯 Aplicando inferência e extraindo métricas...")
     
-    # ... (O código do Ground Truth continua igual) ...
+    colunas_dataset = df_test.columns.tolist()
+    colunas_possiveis_label = ['Label', 'label', 'Anomaly', 'anomaly', 'Is_Anomaly', 'pred_is_anomaly']
+    coluna_alvo = next((col for col in colunas_possiveis_label if col in colunas_dataset), None)
+
+    if coluna_alvo:
+        y_verdadeiro = df_test[coluna_alvo].apply(
+            lambda x: 1 if str(x).strip().lower() in ['anomaly', '1', 'true', 'anômalo', 'fail'] else 0
+        ).values
+    else:
+        print(f"[{time.strftime('%H:%M:%S')}] ⚠️ ALERTA: Nenhuma coluna de rótulo (Ground Truth) encontrada.")
+        y_verdadeiro = None
 
     # Aplicação do modelo usando os dados do treino
     df_resultado, _, metricas_ml, _, _ = anomaly_detector.process_log_anomalies(
@@ -193,7 +183,7 @@ def processar_logs_em_lote():
         X_tfidf=X_test, 
         y_true=y_verdadeiro,
         model=modelo_treinado,
-        best_threshold=threshold_treinado,
+        best_threshold=threshold_treinado, # Passa o limiar matemático correto
         algorithm=algoritmo_ativo # <--- Usa a escolha do portal
     )
 
@@ -297,7 +287,8 @@ if __name__ == "__main__":
     print("🚀 Iniciando o Sistema de Detecção de Anomalias...")
     print("🖥️ Abrindo o Dashboard no navegador (Sempre na porta 8501)...")
     
-    comando = ["streamlit", "run", "dashboard.py", "--server.port", "8501"]
+    # Caminho corrigido apontando para modules/dashboard.py
+    comando = ["streamlit", "run", "modules/dashboard.py", "--server.port", "8501"]
     processo_dashboard = subprocess.Popen(comando)
     
     time.sleep(3) 
