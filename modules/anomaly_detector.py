@@ -39,7 +39,8 @@ def optimize_isolation_forest(X_train, y_train):
     param_grid = {
     "n_estimators": [300, 500],
     "max_samples": [256, 512,"auto"],
-    "max_features": [0.2, 0.5, 1.0], 
+    #"max_features": [0.2, 0.5, 1.0], 
+    "max_features": [1.0],    
     "bootstrap": [False]
     }
 
@@ -65,7 +66,7 @@ def optimize_isolation_forest(X_train, y_train):
         precisions, recalls, thresholds = precision_recall_curve(y_v, scores_v)
 
         # Calcula F1 ignorando divisões por zero de forma segura
-        beta = 0.2
+        beta = 1.0
         fbeta_scores = ((1 + beta**2) * precisions[:-1] * recalls[:-1]) / ((beta**2 * precisions[:-1]) + recalls[:-1] + 1e-10)
 
         taxas_anomalia = np.array([(scores_v >= t).mean() for t in thresholds])
