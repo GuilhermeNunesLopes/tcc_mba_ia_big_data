@@ -12,6 +12,7 @@ from sklearn.metrics import (
     confusion_matrix,
     auc
 )
+from sklearn.svm import OneClassSVM
 
 def optimize_isolation_forest(X_train, y_train):
     """
@@ -67,6 +68,7 @@ def optimize_isolation_forest(X_train, y_train):
 
         # Calcula F1 ignorando divisões por zero de forma segura
         beta = 1.0
+        #beta = 0.5  # Dá mais peso à precisão, visto que falsos positivos são mais críticos
         fbeta_scores = ((1 + beta**2) * precisions[:-1] * recalls[:-1]) / ((beta**2 * precisions[:-1]) + recalls[:-1] + 1e-10)
 
         taxas_anomalia = np.array([(scores_v >= t).mean() for t in thresholds])
@@ -95,12 +97,8 @@ def optimize_isolation_forest(X_train, y_train):
     return best_model, best_params, best_threshold
 
 
-def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, best_threshold=None, contamination="auto", anomaly_percentile=3):
-    """
-    Identifica anomalias em logs numéricos. 
-    Se model=None, assume que é fase de TREINO.
-    Se model foi passado, assume que é fase de TESTE (sem retreino).
-    """
+def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, best_threshold=None, contamination="auto", anomaly_percentile=3, algorithm="iforest"):
+    
     df_result = df_original.copy()
     
     if len(df_result) != X_tfidf.shape[0]:
@@ -110,20 +108,22 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, best_th
     
     # FASE DE TREINO
     if model is None:
-        print("Fase de Treino: Otimizando Isolation Forest...")
+        print(f"Fase de Treino: Otimizando {algorithm.upper()}...")
         if y_true is not None:
-            model, best_params_out, best_threshold = optimize_isolation_forest(X_tfidf, y_true)
+            if algorithm == "iforest":
+                model, best_params_out, best_threshold = optimize_isolation_forest(X_tfidf, y_true)
+            elif algorithm == "ocsvm":
+                model, best_params_out, best_threshold = optimize_one_class_svm(X_tfidf, y_true)
+            else:
+                raise ValueError("Algoritmo desconhecido. Escolha 'iforest' ou 'ocsvm'.")
         else:
-            model = IsolationForest(
-                n_estimators=300,
-                contamination=contamination,
-                random_state=42,
-                n_jobs=1
-            )
+            # Fallback genérico caso rode em produção sem label
+            model = IsolationForest(n_estimators=300, contamination=contamination, random_state=42) if algorithm == "iforest" else OneClassSVM(nu=0.05)
             model.fit(X_tfidf)
     else:
-        print("Fase de Teste: Usando modelo e threshold previamente treinados.")
+        print(f"Fase de Teste: Usando modelo {algorithm.upper()} e threshold previamente treinados.")
 
+    # ... O restante da função continua exatamente igual a partir de "1. Extração dos Scores Brutos"[cite: 10]
     # 1. Extração dos Scores Brutos
     decision_scores = model.decision_function(X_tfidf)
     df_result['anomaly_score'] = decision_scores
@@ -160,3 +160,72 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, best_th
     df_result = df_result.sort_values(by='anomaly_score', ascending=True)
     
     return df_result, model, metricas_calculadas, best_params_out, best_threshold
+
+
+
+############################################
+#   TESTANDO OUTRO MODELO DE DETECÇÃO DE ANOMALIAS (ONE-CLASS SVM)
+############################################
+def optimize_one_class_svm(X_train, y_train):
+    """
+    Otimiza o One-Class SVM com a mesma métrica F-Beta do Isolation Forest.
+    """
+    X_t, X_v, y_t, y_v = train_test_split(
+        X_train, y_train, 
+        test_size=0.2, 
+        random_state=42, 
+        stratify=y_train
+    )
+
+    # Hiperparâmetros matemáticos da fronteira do SVM
+    param_grid = {
+        "kernel": ["linear", "rbf"], # O Linear costuma destruir o RBF em matrizes esparsas de texto
+        "gamma": ["scale", "auto"],  # Usado apenas se o RBF for escolhido
+        "nu": [0.05, 0.08, 0.12]     # nu deve abraçar a taxa de anomalias real do dataset de treino (7.7%)
+    }
+
+    best_model = None
+    best_params = None
+    best_threshold = None
+    best_f1 = -1
+
+    for params in ParameterGrid(param_grid):
+        model = OneClassSVM(**params)
+
+        # Treina APENAS na fatia interna
+        model.fit(X_t)
+
+        # O decision_function do SVM funciona igual ao do IF: valores negativos são anomalias
+        # Multiplicamos por -1 para a curva PR_AUC funcionar corretamente
+        scores_v = -model.decision_function(X_v)
+
+        precisions, recalls, thresholds = precision_recall_curve(y_v, scores_v)
+
+        # Usando Beta = 1.0 (F1-Score puro) para ser a mesma base de comparação do IF
+        beta = 1.0
+        fbeta_scores = ((1 + beta**2) * precisions[:-1] * recalls[:-1]) / ((beta**2 * precisions[:-1]) + recalls[:-1] + 1e-10)
+
+        taxas_anomalia = np.array([(scores_v >= t).mean() for t in thresholds])
+        fbeta_scores[taxas_anomalia > 0.10] = 0.0
+
+        idx = np.argmax(fbeta_scores)
+        current_threshold = thresholds[idx]
+        pred_v = (scores_v >= current_threshold).astype(int)
+        
+        f1 = f1_score(y_v, pred_v, zero_division=0)
+
+        if f1 > best_f1:
+            best_f1 = f1
+            best_params = params
+            best_threshold = current_threshold
+            
+            # Retreina o melhor modelo com TODO o dado de treino
+            best_model = OneClassSVM(**params)
+            best_model.fit(X_train)
+
+    print("\n===== Melhor configuração OCSVM =====")
+    print(best_params)
+    print(f"Threshold: {best_threshold:.4f}")
+    print(f"F1 (Validação): {best_f1:.4f}")
+
+    return best_model, best_params, best_threshold

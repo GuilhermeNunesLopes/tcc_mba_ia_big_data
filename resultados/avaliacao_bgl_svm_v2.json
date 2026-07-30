@@ -1,0 +1,24 @@
+{
+  "metricas_percentil_fixo": {
+    "PR_AUC": 0.037808425376970205,
+    "Precision": 0.05676126878130217,
+    "Recall": 1.0,
+    "F1_Score": 0.10742496050552923
+  },
+  "comparacao_estrategias": [
+    {
+      "Estratégia": "Threshold Otimizado",
+      "Precision": 0.05676126878130217,
+      "Recall": 1.0,
+      "F1": 0.10742496050552923,
+      "Qtd_Prevista_Anomalia": 599
+    },
+    {
+      "Estratégia": "predict() nativo (contamination='auto')",
+      "Precision": 0.07272727272727272,
+      "Recall": 0.23529411764705882,
+      "F1": 0.1111111111111111,
+      "Qtd_Prevista_Anomalia": 110
+    }
+  ]
+}

@@ -131,7 +131,8 @@ def tfidf_vectorize(df, vectorizer=None):
     if vectorizer is None:
         # Modo Treino: Cria e ajusta aos dados
         vectorizer = TfidfVectorizer(
-        ngram_range=(1, 2), 
+        #ngram_range=(1, 2), 
+        ngram_range=(1, 1),  # Apenas unigramas
         min_df=1,           
         max_df=0.95,        
         binary=True,        

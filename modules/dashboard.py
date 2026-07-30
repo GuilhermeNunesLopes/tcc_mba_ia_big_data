@@ -205,14 +205,21 @@ def main():
             default=PASTAS_DISPONIVEIS 
         )
 
-        st.header("Filtros Temporais & Contaminação")
+        st.header("Configurações do Modelo de IA")
+        
+        # === NOVA OPÇÃO DE ALGORITMO ===
+        algoritmo_selecionado = st.selectbox(
+            "Algoritmo de Detecção:",
+            options=["iforest", "ocsvm"],
+            format_func=lambda x: "Isolation Forest (Árvores)" if x == "iforest" else "One-Class SVM (Fronteira)"
+        )
         
         contamination = st.slider(
             "Taxa de Contaminação (Anomalias)", 
             min_value=0.01, max_value=0.10, value=0.05, step=0.01
         )
         
-        # O calendário agora sempre abrirá focando na janela de 30 dias (ou menos, se não houver dados suficientes)
+        st.header("Filtros Temporais")
         datas_selecionadas = st.date_input(
             "Período (Dias):",
             value=valor_calendario,
@@ -226,24 +233,22 @@ def main():
             format="HH:mm" 
         )
         
-        # O botão que trava o recálculo automático!
         submit_button = st.form_submit_button(label='Aplicar Filtros 🚀')
 
     # ==========================================
     # 5. SALVA AS CONFIGURAÇÕES E SINCRONIZA COM O MOTOR
     # ==========================================
-    
-    # 1. SÓ SALVA O JSON SE O BOTÃO FOR CLICADO
     if submit_button:
         config_data = {
             "pastas": pastas_selecionadas,
-            "taxa_contaminacao": contamination
+            "taxa_contaminacao": contamination,
+            "algoritmo": algoritmo_selecionado # <--- Salva o algoritmo escolhido!
         }
         with open("config.json", "w", encoding='utf-8') as f:
             json.dump(config_data, f)
             
-        # Zera a contagem de espera toda vez que aplicamos um filtro novo
         st.session_state.espera_motor = 0
+
 
     # 2. VERIFICAÇÃO DE SINCRONIA (A tela espera o Motor terminar)
     if os.path.exists("config.json"):
