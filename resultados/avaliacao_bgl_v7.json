@@ -1,24 +1,30 @@
 {
+  "svd_components_testados": [
+    15,
+    30,
+    50
+  ],
+  "melhor_svd": 50,
   "metricas_percentil_fixo": {
-    "PR_AUC": 0.08788006729743925,
-    "Precision": 0.05555555555555555,
-    "Recall": 0.029411764705882353,
-    "F1_Score": 0.038461538461538464
+    "PR_AUC": 0.19173349807431458,
+    "Precision": 0.18333333333333332,
+    "Recall": 0.3235294117647059,
+    "F1_Score": 0.23404255319148937
   },
   "comparacao_estrategias": [
     {
-      "Estratégia": "Percentil fixo 1.5% (atual)",
-      "Precision": 0.05555555555555555,
-      "Recall": 0.029411764705882353,
-      "F1": 0.038461538461538464,
-      "Qtd_Prevista_Anomalia": 18
+      "Estratégia": "Threshold Otimizado",
+      "Precision": 0.18333333333333332,
+      "Recall": 0.3235294117647059,
+      "F1": 0.23404255319148937,
+      "Qtd_Prevista_Anomalia": 60
     },
     {
       "Estratégia": "predict() nativo (contamination='auto')",
-      "Precision": 0.0,
-      "Recall": 0.0,
-      "F1": 0.0,
-      "Qtd_Prevista_Anomalia": 0
+      "Precision": 0.043478260869565216,
+      "Recall": 0.058823529411764705,
+      "F1": 0.05,
+      "Qtd_Prevista_Anomalia": 46
     }
   ]
 }

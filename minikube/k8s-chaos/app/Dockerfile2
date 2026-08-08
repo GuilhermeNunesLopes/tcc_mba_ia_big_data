@@ -10,6 +10,10 @@ COPY app2.py .
 # Garante que os logs apareçam imediatamente no stdout
 ENV PYTHONUNBUFFERED=1
 
+# /app/logs é o ponto de montagem esperado para o volume externo
+# (ex.: hostPath do k8s mapeado para ./k8s-chaos/logs no host).
+# LOG_DIR pode ser sobrescrito em runtime se precisar apontar para outro caminho.
+ENV LOG_DIR=/app/logs
 RUN mkdir -p /app/logs
 
 CMD ["python", "app2.py"]

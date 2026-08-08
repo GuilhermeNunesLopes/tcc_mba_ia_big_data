@@ -6,7 +6,6 @@ import subprocess
 import json
 import platform
 import atexit
-import numpy as np
 
 # Importando apenas os módulos de processamento e IA (sem o dashboard)
 import modules.parse_system as parse_system
@@ -15,7 +14,7 @@ import modules.anomaly_detector as anomaly_detector
 from modules.mttd_mtti import RCA_MetricsTracker
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import DBSCAN
-from sklearn.metrics import silhouette_score, precision_recall_curve, auc, precision_score, recall_score, f1_score
+from sklearn.metrics import silhouette_score
 import scipy.sparse as sp
 from sklearn.preprocessing import StandardScaler
 
@@ -34,7 +33,8 @@ def ler_configuracoes():
             return config.get("pastas", []), config.get("taxa_contaminacao", "auto"), config.get("algoritmo", "iforest")
     except (FileNotFoundError, json.JSONDecodeError):
         pastas_padrao = [
-            "experimento/test2"
+            "minikube/k8s-chaos/logs",
+            "docker/meus_logs"
         ] 
         return pastas_padrao, "auto", "iforest"
 
@@ -52,23 +52,14 @@ def processar_logs_em_lote():
     tracker.start_injection(lote_id)
 
     df_list = []
-    
-    # =========================================================================
-    # 🚀 ATUALIZAÇÃO 1: Consumindo o gerador em lotes (Map-Reduce de Memória)
-    # Evita que o Drain estoure a memória com os dicionários internos
-    # =========================================================================
     for pasta in pastas_ativas:
         if os.path.exists(pasta):
             read_generic = parse_system.read_dir_to_temps(pasta)
             for path in read_generic:
-                nome_da_fonte = os.path.basename(pasta)
-                # Aciona o seu parse atualizado com yield
-                gerador_lotes = parse_system.automatic_drain_parse(path, nome_fonte=nome_da_fonte, tamanho_lote=100000)
-                
-                for df_lote in gerador_lotes:
-                    if not df_lote.empty:
-                        df_lote['Source_Folder'] = pasta
-                        df_list.append(df_lote)
+                df_p = parse_system.automatic_drain_parse(path)
+                if not df_p.empty:
+                    df_p['Source_Folder'] = pasta
+                    df_list.append(df_p)
 
     os.makedirs("resultados", exist_ok=True)
     today = date.today().strftime("%Y-%m-%d")
@@ -118,61 +109,33 @@ def processar_logs_em_lote():
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features: Calculando Contexto Temporal...")
 
-    # 1. Garante o formato de data correto
     df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
     df_logs = df_logs.dropna(subset=['Timestamp'])
 
-    # 2. Ordena por pasta e tempo para os cálculos temporais fazerem sentido
     df_logs = df_logs.sort_values(by=['Source_Folder', 'Timestamp']).reset_index(drop=True)
 
-    # 3. CRIA AS COLUNAS QUE ESTAVAM FALTANDO
     df_logs['time_delta'] = df_logs.groupby('Source_Folder')['Timestamp'].diff().dt.total_seconds().fillna(0)
 
     temp_indexed = df_logs.set_index('Timestamp')
     df_logs['log_rate_5m'] = temp_indexed.groupby('Source_Folder')['Raw_Log'].rolling('5min').count().values
 
-    # 4. Ordenação cronológica final obrigatória antes de fazer o Split
+    # Ordenação cronológica final obrigatória
     df_logs = df_logs.sort_values(by='Timestamp').reset_index(drop=True)
 
-    # 1. DIVIDIR OS DADOS PRIMEIRO (Evita Data Leakage no TF-IDF, Scaler e SVD)
-    print(f"[{time.strftime('%H:%M:%S')}] 🔀 Dividindo os dados CRONOLOGICAMENTE (80% Passado / 20% Futuro)...")
-    df_train, df_test = train_test_split(df_logs, test_size=0.2, shuffle=False)
-
-    # ==========================================
-    # 2. FIT/TREINO (Aprendendo apenas com o passado)
-    # ==========================================
-    print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features (Treino)...")
+    matriz_tfidf, vectorizer = preprocessor.tfidf_vectorize(df_logs)
     
-    # Aprende o vocabulário TF-IDF
-    tfidf_train, vectorizer = preprocessor.tfidf_vectorize(df_train, vectorizer=None)
-    
-    # Aprende e aplica o TruncatedSVD para redução de dimensionalidade
-    print(f"[{time.strftime('%H:%M:%S')}] 📉 Aplicando TruncatedSVD...")
-    svd_train, svd_model = preprocessor.apply_truncated_svd(tfidf_train, svd_model=None, n_components=100)
-    
-    # Normaliza features temporais
     scaler = StandardScaler()
-    temp_train = scaler.fit_transform(df_train[['time_delta', 'log_rate_5m']])
+    features_temporais = scaler.fit_transform(df_logs[['time_delta', 'log_rate_5m']])
     
-    # Combina (SVD retorna matriz densa, usamos np.hstack)
-    X_train = np.hstack((svd_train, temp_train))
-
+    matriz_combinada = sp.hstack((matriz_tfidf, sp.csr_matrix(features_temporais)))
+    
     # ==========================================
-    # 3. TRANSFORM/TESTE (Aplicando regras no futuro)
+    # NOVA LÓGICA DE TREINO E TESTE (Sem Vazamento)
     # ==========================================
-    print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features (Teste)...")
-    
-    # Aplica o vocabulário existente aos dados novos
-    tfidf_test, _ = preprocessor.tfidf_vectorize(df_test, vectorizer=vectorizer)
-    
-    # Aplica a mesma redução de dimensionalidade
-    svd_test, _ = preprocessor.apply_truncated_svd(tfidf_test, svd_model=svd_model)
-    
-    # Aplica a mesma escala temporal
-    temp_test = scaler.transform(df_test[['time_delta', 'log_rate_5m']])
-    
-    # Combina matriz de teste
-    X_test = np.hstack((svd_test, temp_test))
+    print(f"[{time.strftime('%H:%M:%S')}] 🔀 Dividindo os dados CRONOLOGICAMENTE (80% Passado / 20% Futuro)...")
+    df_train, df_test, X_train, X_test = train_test_split(
+        df_logs, matriz_combinada, test_size=0.2, shuffle=False # <--- shuffle=False GARANTE O SPLIT CRONOLÓGICO
+    )
 
     # ==========================================
     # TRACKING DE INCIDENTES (MTTD)
@@ -220,43 +183,9 @@ def processar_logs_em_lote():
         X_tfidf=X_test, 
         y_true=y_verdadeiro,
         model=modelo_treinado,
-        best_threshold=threshold_treinado, 
-        algorithm=algoritmo_ativo 
+        best_threshold=threshold_treinado, # Passa o limiar matemático correto
+        algorithm=algoritmo_ativo # <--- Usa a escolha do portal
     )
-
-    # =========================================================================
-    # 🚀 ATUALIZAÇÃO 2: Otimização Matemática do Threshold (Se houver Ground Truth)
-    # Aumenta drásticamente o F1-Score do Dashboard cortando no ponto ótimo
-    # =========================================================================
-    if y_verdadeiro is not None and np.sum(y_verdadeiro) > 0:
-        print(f"[{time.strftime('%H:%M:%S')}] 📐 Calculando limiar ótimo via Precision-Recall Curve...")
-        
-        # Extrai scores contínuos para o conjunto de testes
-        scores_decision = -modelo_treinado.decision_function(X_test)
-        precisions_curve, recalls_curve, thresholds_curve = precision_recall_curve(y_verdadeiro, scores_decision)
-        pr_auc = auc(recalls_curve, precisions_curve)
-
-        # Encontra o ponto ótimo na curva (F1)
-        f1_scores_curve = 2 * (precisions_curve * recalls_curve) / (precisions_curve + recalls_curve + 1e-10)
-        best_idx = np.argmax(f1_scores_curve)
-        best_threshold_local = thresholds_curve[best_idx] if best_idx < len(thresholds_curve) else thresholds_curve[-1]
-
-        # Sobrescreve as predições com a linha de corte acadêmica
-        df_resultado['pred_is_anomaly'] = (scores_decision >= best_threshold_local).astype(int)
-
-        # Atualiza métricas reais
-        prec = precision_score(y_verdadeiro, df_resultado['pred_is_anomaly'], zero_division=0)
-        rec = recall_score(y_verdadeiro, df_resultado['pred_is_anomaly'], zero_division=0)
-        f1 = f1_score(y_verdadeiro, df_resultado['pred_is_anomaly'], zero_division=0)
-
-        print(f"   -> Threshold Otimizado (Teste): {best_threshold_local:.4f}")
-        print(f"   -> F1-Score: {f1:.4f} | PR-AUC: {pr_auc:.4f}")
-
-        # Injeta os valores reais no dicionário para o Dashboard exibir
-        if metricas_ml is not None:
-            metricas_ml['F1_Score'] = round(float(f1), 4)
-            metricas_ml['Precision'] = round(float(prec), 4)
-            metricas_ml['Recall'] = round(float(rec), 4)
 
     # [MARCADOR T1]: Detecção Concluída
     tracker.mark_detected(lote_id)
@@ -277,7 +206,8 @@ def processar_logs_em_lote():
         print(f"[{time.strftime('%H:%M:%S')}] 🧩 Agrupando anomalias com DBSCAN...")
         
         # Converte a matriz esparsa para densa apenas para as anomalias, garantindo que o DBSCAN funcione perfeitamente
-        X_anomalias_denso = X_test[mask_anomalias]
+        X_anomalias_denso = X_test[mask_anomalias].toarray()
+        
         clusterizador = DBSCAN(eps=0.5, min_samples=4)
         labels_clusters = clusterizador.fit_predict(X_anomalias_denso)
         

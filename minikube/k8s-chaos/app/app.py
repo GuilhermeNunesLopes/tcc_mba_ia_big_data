@@ -1,33 +1,157 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-import sqlite3, os, time, random, threading, logging, json
+import atexit
+import json
+import logging
+import os
+import random
+import sqlite3
+import sys
+import threading
+import time
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+
 # ── Config ────────────────────────────────────────────────────────────────────
-POD_NAME   = os.environ.get("HOSTNAME", "pod-local")
-LOG_DIR    = Path("/app/logs")
-DB_PATH    = LOG_DIR / "events.db"
-APP_LOG    = LOG_DIR / f"{POD_NAME}.log"
+POD_NAME = os.environ.get("HOSTNAME", "pod-local")
+
+# LOG_DIR é configurável via env var para poder apontar para um volume externo
+# (ex.: hostPath do Kubernetes mapeado para ./k8s-chaos/logs no host).
+LOG_DIR = Path(os.environ.get("LOG_DIR", "/app/logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# Nomes de arquivo por pod: evita colisão quando várias réplicas compartilham
+# o mesmo diretório externo montado.
+APP_LOG    = LOG_DIR / f"{POD_NAME}.log"
+DB_PATH    = LOG_DIR / f"{POD_NAME}_events.db"
+STATE_FILE = LOG_DIR / f"{POD_NAME}_state.json"
+
+
+# ── Formatter JSON (estruturado, com stack trace quando houver exceção) ───────
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level":     record.levelname,
+            "module":    record.module,
+            "pod":       POD_NAME,
+            "event":     getattr(record, "event", "log"),
+            "message":   record.getMessage(),
+        }
+        if record.exc_info:
+            exc_type, exc_value, _ = record.exc_info
+            payload["exception"] = {
+                "type":        exc_type.__name__ if exc_type else None,
+                "message":     str(exc_value),
+                "stack_trace": self.formatException(record.exc_info),
+            }
+        return json.dumps(payload, ensure_ascii=False)
+
+
 # ── Logger ────────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler(APP_LOG),
-        logging.StreamHandler()
-    ]
-)
+file_handler = RotatingFileHandler(APP_LOG, maxBytes=10 * 1024 * 1024, backupCount=5)
+file_handler.setFormatter(JSONFormatter())
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setFormatter(JSONFormatter())
+
 logger = logging.getLogger("demo-app")
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(stdout_handler)
+
+
+# ── Estado persistido (detecta encerramento anormal do processo anterior) ─────
+# Sinais como SIGKILL/OOMKill não podem ser capturados em código — a única
+# forma confiável de perceber que o pod "caiu" é checar, na próxima
+# inicialização, se o estado anterior nunca chegou a ser marcado como
+# "stopped_clean". Como STATE_FILE fica no LOG_DIR (volume externo), essa
+# informação sobrevive ao restart do container.
+RECOVERY_INFO = None
+
+
+def _write_state(status: str, extra: dict | None = None):
+    try:
+        data = {
+            "pod": POD_NAME,
+            "pid": os.getpid(),
+            "status": status,
+            "updated_at": datetime.now().isoformat(),
+        }
+        if extra:
+            data.update(extra)
+        STATE_FILE.write_text(json.dumps(data, ensure_ascii=False))
+    except Exception:
+        pass  # persistir estado nunca deve derrubar a aplicação
+
+
+def _check_previous_crash():
+    global RECOVERY_INFO
+    if not STATE_FILE.exists():
+        return
+    try:
+        prev = json.loads(STATE_FILE.read_text())
+    except Exception:
+        return
+    if prev.get("status") == "running":
+        gap = "desconhecido"
+        try:
+            last = datetime.fromisoformat(prev["updated_at"])
+            gap = f"{(datetime.now() - last).total_seconds():.1f}s"
+        except Exception:
+            pass
+        RECOVERY_INFO = {
+            "previous_pid": prev.get("pid"),
+            "last_heartbeat": prev.get("updated_at"),
+            "gap_seconds": gap,
+        }
+        logger.critical(
+            f"Reinicio detectado sem encerramento gracioso do processo anterior "
+            f"(pid={prev.get('pid', '?')}), ultimo heartbeat ha {gap}. "
+            f"Provavel OOMKill, SIGKILL ou crash do container.",
+            extra={"event": "unclean_shutdown_detected"},
+        )
+        insert_event(
+            "system",
+            f"Recovery: pod reiniciado apos encerramento anormal (ultimo heartbeat ha {gap})",
+            "critical",
+            0,
+        )
+
+
+# ── Captura de falhas não tratadas (thread principal e threads em background) ─
+def _log_fatal(exc_type, exc_value, exc_tb, origin: str):
+    logger.critical(
+        f"Falha fatal nao tratada em {origin}: {exc_type.__name__}: {exc_value}",
+        exc_info=(exc_type, exc_value, exc_tb),
+        extra={"event": "fatal_crash"},
+    )
+    _write_state("crashed", {"error": f"{exc_type.__name__}: {exc_value}", "origin": origin})
+    for h in logger.handlers:
+        h.flush()
+
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    _log_fatal(exc_type, exc_value, exc_tb, origin="thread principal")
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+
+def _thread_excepthook(args):
+    _log_fatal(args.exc_type, args.exc_value, args.exc_traceback, origin=f"thread '{args.thread.name}'")
+
+
+sys.excepthook = _excepthook
+threading.excepthook = _thread_excepthook
+atexit.register(logging.shutdown)
+
 
 # ── SQLite ─────────────────────────────────────────────────────────────────────
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 def init_db():
     with get_db() as db:
@@ -43,7 +167,8 @@ def init_db():
             )
         """)
         db.commit()
-    logger.info(f"DB inicializado em {DB_PATH}")
+    logger.info(f"DB inicializado em {DB_PATH}", extra={"event": "lifecycle"})
+
 
 def insert_event(type: str, message: str, status: str = "ok", latency: float = 0.0):
     try:
@@ -54,8 +179,9 @@ def insert_event(type: str, message: str, status: str = "ok", latency: float = 0
             )
             db.commit()
         logger.info(f"[DB INSERT] type={type} status={status} msg={message}")
-    except Exception as e:
-        logger.error(f"[DB ERROR] {e}")
+    except Exception:
+        logger.error("[DB ERROR] Falha ao gravar evento no SQLite", exc_info=True, extra={"event": "db_error"})
+
 
 # ── Background: gera eventos periódicos ───────────────────────────────────────
 EVENT_TYPES = [
@@ -71,30 +197,62 @@ EVENT_TYPES = [
     ("error",    "Retry 1/3: inventory-svc", "warn"),
 ]
 
+
 def background_event_generator():
     time.sleep(3)
-    logger.info("Gerador de eventos iniciado")
+    logger.info("Gerador de eventos iniciado", extra={"event": "lifecycle"})
+    last_heartbeat = 0.0
     while True:
         try:
             etype, msg, status = random.choice(EVENT_TYPES)
             latency = round(random.uniform(0.002, 0.45), 4)
             insert_event(etype, msg, status, latency)
+
+            now = time.time()
+            if now - last_heartbeat > 5:
+                _write_state("running")
+                last_heartbeat = now
+
             time.sleep(random.uniform(2, 6))
-        except Exception as e:
-            logger.error(f"[GENERATOR] {e}")
+        except Exception:
+            # Erro inesperado no próprio gerador (não a falha simulada de negócio)
+            logger.error(
+                "[GENERATOR] Erro inesperado no gerador de eventos",
+                exc_info=True,
+                extra={"event": "generator_error"},
+            )
+            insert_event("error", "Erro inesperado no gerador de eventos", "error", 0)
             time.sleep(5)
+
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Demo App", version="1.0.0")
 
+
 @app.on_event("startup")
 def startup():
     init_db()
+    _check_previous_crash()
+    _write_state("running")
     insert_event("system", f"Pod {POD_NAME} iniciado", "ok", 0)
-    t = threading.Thread(target=background_event_generator, daemon=True)
+    t = threading.Thread(target=background_event_generator, daemon=True, name="event-generator")
     t.start()
 
-# ── Middleware: loga cada request ──────────────────────────────────────────────
+
+@app.on_event("shutdown")
+def shutdown():
+    # Disparado pelo lifespan do ASGI quando o uvicorn recebe SIGTERM/SIGINT e
+    # drena as conexões — é o jeito correto de reagir ao sinal aqui, já que um
+    # signal.signal() manual seria sobrescrito pelo próprio uvicorn.
+    logger.warning("Encerramento gracioso solicitado (shutdown do lifespan).",
+                    extra={"event": "graceful_shutdown"})
+    insert_event("system", f"Pod {POD_NAME} encerrando graciosamente", "ok", 0)
+    _write_state("stopped_clean", {"reason": "graceful_shutdown"})
+    for h in logger.handlers:
+        h.flush()
+
+
+# ── Middleware: loga cada request e captura falhas não tratadas ──────────────
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
@@ -106,24 +264,55 @@ async def log_requests(request: Request, call_next):
         logger.info(f"{request.method} {request.url.path} → {response.status_code} ({latency:.3f}s)")
     return response
 
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        f"Excecao nao tratada em {request.method} {request.url.path}: {type(exc).__name__}: {exc}",
+        exc_info=exc,
+        extra={"event": "request_crash"},
+    )
+    insert_event(
+        "http",
+        f"{request.method} {request.url.path} - {type(exc).__name__}: {exc}",
+        "critical",
+        0,
+    )
+    return JSONResponse(status_code=500, content={"error": "internal_server_error", "pod": POD_NAME})
+
+
 # ── API endpoints ──────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
     return {"status": "ok", "pod": POD_NAME}
 
+
+@app.get("/api/state")
+def api_state():
+    """Estado persistido no volume externo — útil para confirmar que o mount está ativo."""
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except Exception:
+        return {"status": "unknown"}
+
+
 @app.get("/api/status")
 def status():
     with get_db() as db:
-        total   = db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-        errors  = db.execute("SELECT COUNT(*) FROM events WHERE status='error'").fetchone()[0]
-        last_ts = db.execute("SELECT ts FROM events ORDER BY id DESC LIMIT 1").fetchone()
+        total    = db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        errors   = db.execute("SELECT COUNT(*) FROM events WHERE status='error'").fetchone()[0]
+        critical = db.execute("SELECT COUNT(*) FROM events WHERE status='critical'").fetchone()[0]
+        last_ts  = db.execute("SELECT ts FROM events ORDER BY id DESC LIMIT 1").fetchone()
     return {
         "pod": POD_NAME,
         "uptime_since": datetime.now().isoformat(),
         "total_events": total,
         "total_errors": errors,
+        "total_critical": critical,
+        "recovery": RECOVERY_INFO,
         "last_event": last_ts[0] if last_ts else None
     }
+
 
 @app.get("/api/events")
 def events(limit: int = 50):
@@ -132,6 +321,7 @@ def events(limit: int = 50):
             "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
+
 
 @app.get("/api/events/stats")
 def stats():
@@ -145,6 +335,7 @@ def stats():
         "avg_latency_ms": round((avg_lat or 0) * 1000, 2)
     }
 
+
 @app.post("/api/stress")
 def stress():
     start = time.time()
@@ -152,6 +343,7 @@ def stress():
     latency = time.time() - start
     insert_event("stress", "CPU stress test executado", "ok", latency)
     return {"pod": POD_NAME, "duration_ms": round(latency * 1000, 1)}
+
 
 # ── Dashboard HTML ─────────────────────────────────────────────────────────────
 DASHBOARD_HTML = """<!DOCTYPE html>
@@ -232,6 +424,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   }
 
   main { padding: 24px 28px; max-width: 1200px; margin: 0 auto; }
+
+  .recovery-banner {
+    display: none;
+    background: rgba(248,81,73,.12);
+    border: 1px solid var(--error);
+    color: var(--error);
+    border-radius: 10px;
+    padding: 11px 16px;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 18px;
+  }
+  .recovery-banner.show { display: block; }
 
   .stats-grid {
     display: grid;
@@ -337,15 +542,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     font-weight: 500;
     font-family: var(--sans);
   }
-  .badge-ok     { background: rgba(63,185,80,.15);   color: var(--ok);     border: 1px solid rgba(63,185,80,.3); }
-  .badge-warn   { background: rgba(210,153,34,.15);  color: var(--warn);   border: 1px solid rgba(210,153,34,.3); }
-  .badge-error  { background: rgba(248,81,73,.15);   color: var(--error);  border: 1px solid rgba(248,81,73,.3); }
-  .badge-http   { background: rgba(88,166,255,.1);   color: var(--accent); border: 1px solid rgba(88,166,255,.25); }
-  .badge-db     { background: rgba(188,140,255,.1);  color: var(--purple); border: 1px solid rgba(188,140,255,.25); }
-  .badge-system { background: rgba(125,133,144,.1);  color: var(--muted);  border: 1px solid rgba(125,133,144,.2); }
-  .badge-cache  { background: rgba(210,153,34,.1);   color: var(--warn);   border: 1px solid rgba(210,153,34,.25); }
-  .badge-auth   { background: rgba(63,185,80,.1);    color: var(--ok);     border: 1px solid rgba(63,185,80,.25); }
-  .badge-stress { background: rgba(248,81,73,.1);    color: var(--error);  border: 1px solid rgba(248,81,73,.25); }
+  .badge-ok       { background: rgba(63,185,80,.15);   color: var(--ok);     border: 1px solid rgba(63,185,80,.3); }
+  .badge-warn     { background: rgba(210,153,34,.15);  color: var(--warn);   border: 1px solid rgba(210,153,34,.3); }
+  .badge-error    { background: rgba(248,81,73,.15);   color: var(--error);  border: 1px solid rgba(248,81,73,.3); }
+  .badge-critical { background: rgba(248,81,73,.28);   color: #fff;          border: 1px solid var(--error); font-weight: 700; animation: blink 1.2s infinite; }
+  .badge-http     { background: rgba(88,166,255,.1);   color: var(--accent); border: 1px solid rgba(88,166,255,.25); }
+  .badge-db       { background: rgba(188,140,255,.1);  color: var(--purple); border: 1px solid rgba(188,140,255,.25); }
+  .badge-system   { background: rgba(125,133,144,.1);  color: var(--muted);  border: 1px solid rgba(125,133,144,.2); }
+  .badge-cache    { background: rgba(210,153,34,.1);   color: var(--warn);   border: 1px solid rgba(210,153,34,.25); }
+  .badge-auth     { background: rgba(63,185,80,.1);    color: var(--ok);     border: 1px solid rgba(63,185,80,.25); }
+  .badge-stress   { background: rgba(248,81,73,.1);    color: var(--error);  border: 1px solid rgba(248,81,73,.25); }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
   .latency { color: var(--muted); }
   .latency.slow { color: var(--warn); }
@@ -399,9 +606,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </header>
 
 <main>
+  <div class="recovery-banner" id="recovery-banner"></div>
+
   <div class="stats-grid" id="stats-grid">
     <div class="stat-card"><div class="label">Total eventos</div><div class="value val-accent" id="s-total">—</div><div class="sub">desde o início</div></div>
-    <div class="stat-card"><div class="label">Erros</div><div class="value val-error" id="s-errors">—</div><div class="sub">status error</div></div>
+    <div class="stat-card"><div class="label">Erros</div><div class="value val-warn" id="s-errors">—</div><div class="sub">status error</div></div>
+    <div class="stat-card"><div class="label">Falhas críticas</div><div class="value val-error" id="s-critical">—</div><div class="sub">crashes detectados</div></div>
     <div class="stat-card"><div class="label">Latência média</div><div class="value val-purple" id="s-latency">—</div><div class="sub">ms por evento</div></div>
     <div class="stat-card"><div class="label">Último evento</div><div class="value val-ok" style="font-size:13px;padding-top:4px" id="s-last">—</div><div class="sub">horário local</div></div>
   </div>
@@ -417,7 +627,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="log-panel">
     <div class="log-panel-header">
       <span>events</span>
-      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">/app/logs/events.db</span>
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)" id="db-path">/app/logs/events.db</span>
       <span class="count-badge" id="event-count">0 rows</span>
     </div>
     <div class="log-table-wrap">
@@ -446,6 +656,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <a href="/api/status">GET /api/status</a>
   <a href="/api/events">GET /api/events</a>
   <a href="/api/events/stats">GET /api/events/stats</a>
+  <a href="/api/state">GET /api/state</a>
   <a href="/docs">Swagger UI</a>
 </footer>
 
@@ -457,7 +668,7 @@ const typeBadge = t => {
   return `<span class="badge ${map[t]||'badge-system'}">${t}</span>`;
 };
 const statusBadge = s => {
-  const map = {ok:'badge-ok', warn:'badge-warn', error:'badge-error'};
+  const map = {ok:'badge-ok', warn:'badge-warn', error:'badge-error', critical:'badge-critical'};
   return `<span class="badge ${map[s]||'badge-system'}">${s}</span>`;
 };
 const latencyCell = ms => {
@@ -472,10 +683,20 @@ async function loadStats() {
       fetch('/api/events/stats').then(r=>r.json())
     ]);
     document.getElementById('pod-name').textContent = st.pod;
+    document.getElementById('db-path').textContent = `/app/logs/${st.pod}_events.db`;
     document.getElementById('s-total').textContent = st.total_events.toLocaleString();
     document.getElementById('s-errors').textContent = st.total_errors.toLocaleString();
+    document.getElementById('s-critical').textContent = (st.total_critical||0).toLocaleString();
     document.getElementById('s-latency').textContent = stats.avg_latency_ms + ' ms';
     document.getElementById('s-last').textContent = st.last_event ? st.last_event.slice(11,19) : '—';
+
+    const banner = document.getElementById('recovery-banner');
+    if (st.recovery) {
+      banner.textContent = `⚠ Este pod (${st.pod}) reiniciou apos um encerramento anormal do processo anterior — ultimo heartbeat ha ${st.recovery.gap_seconds}. Provavel OOMKill, SIGKILL ou crash.`;
+      banner.classList.add('show');
+    } else {
+      banner.classList.remove('show');
+    }
   } catch(e) { console.error(e); }
 }
 

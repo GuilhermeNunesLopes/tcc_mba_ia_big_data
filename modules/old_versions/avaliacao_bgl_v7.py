@@ -233,7 +233,7 @@ def main():
         X_tfidf=X_test_final,
         y_true=df_test["y_true"],
         model=modelo_treinado,          
-        best_threshold=threshold_treinado 
+        best_threshold=threshold_treinado,
         algorithm="iforest"
     )
     

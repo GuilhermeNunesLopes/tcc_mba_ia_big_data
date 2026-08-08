@@ -121,7 +121,9 @@ Thumbs.db
 #Logs
 logs_hugging/
 *.log
+logpai
 
 ~/.cache
 docker/meus_logs
 *.metadata
+minikube/k8s-chaos/logs
