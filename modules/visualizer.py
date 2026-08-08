@@ -12,44 +12,47 @@ import os
 import json
 
 def plot_anomaly_timeline_plotly(df):
-    """Gera uma linha do tempo super otimizada com cores de alto contraste."""
+    """Gera uma linha do tempo otimizada com cores de alto contraste."""
+    if df.empty:
+        return go.Figure()
+        
+    df_plot = df.copy()
     
-    #anomalias = df[df['pred_is_anomaly'] == True].copy()
-    #normais = df[df['pred_is_anomaly'] == False].copy()
-    anomalias = df[df['pred_is_anomaly'] == 1].copy()
-    normais = df[df['pred_is_anomaly'] == 0].copy()
+    # Rótulo em texto legível para o Plotly separar as séries sem ambiguidade
+    df_plot['Status'] = df_plot['pred_is_anomaly'].apply(
+        lambda x: 'Anomalia' if str(x) in ['1', 'True', 'true'] else 'Normal'
+    )
+    df_plot['tamanho_ponto'] = df_plot['Status'].apply(lambda x: 12 if x == 'Anomalia' else 5)
+
+    # Garante que as anomalias sejam desenhadas POR CIMA dos pontos normais
+    normais = df_plot[df_plot['Status'] == 'Normal']
+    anomalias = df_plot[df_plot['Status'] == 'Anomalia']
 
     if len(normais) > 5000:
         normais = normais.sample(n=5000, random_state=42)
         
-    df_plot = pd.concat([normais, anomalias])
+    df_final_plot = pd.concat([normais, anomalias])
     
-    # Adiciona uma coluna para forçar as anomalias a serem bolinhas MAIORES no gráfico
-    df_plot['tamanho_ponto'] = df_plot['pred_is_anomaly'].apply(lambda x: 12 if x else 5)
-    
-    tem_timestamp = 'Timestamp' in df_plot.columns
-    x_col = 'Timestamp' if tem_timestamp else df_plot.index
+    tem_timestamp = 'Timestamp' in df_final_plot.columns
+    x_col = 'Timestamp' if tem_timestamp else df_final_plot.index
     x_label = 'Tempo (Hora do Log)' if tem_timestamp else 'Sequência dos Logs'
     
     hover_cols = []
-    if 'Template' in df_plot.columns: hover_cols.append('Template')
-    if 'Source_Folder' in df_plot.columns: hover_cols.append('Source_Folder')
+    if 'Template' in df_final_plot.columns: hover_cols.append('Template')
+    if 'Source_Folder' in df_final_plot.columns: hover_cols.append('Source_Folder')
 
     fig = px.scatter(
-        df_plot, 
+        df_final_plot, 
         x=x_col, 
         y='anomaly_score', 
-        color='pred_is_anomaly',
-        # Cores Fortes: Verde brilhante para normal, Vermelho Alerta para anomalias
-        color_discrete_map={False: '#00FF00', True: '#FF0000'}, 
-        size='tamanho_ponto', # Aplica a diferença de tamanho
+        color='Status',
+        color_discrete_map={'Normal': '#00FF00', 'Anomalia': '#FF0000'}, 
+        size='tamanho_ponto',
         title="Linha do Tempo de Detecção de Anomalias",
         labels={x_col: x_label, 'anomaly_score': 'Decision Score (Gravidade)'},
-        hover_data=hover_cols,
-        render_mode='webgl'
+        hover_data=hover_cols
     )
     
-    # Estilização Hacker/SRE (Fundo escuro nativo)
     fig.update_layout(
         plot_bgcolor='#0E1117',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -128,7 +131,8 @@ def plot_anomaly_distribution_plotly(df):
         x='anomaly_score', 
         color='pred_is_anomaly', 
         barmode='overlay',
-        color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Mesmas cores da timeline
+        #color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Mesmas cores da timeline
+        color_discrete_map={0: '#1f77b4', 1: '#ff4b4b',False: '#1f77b4', True: '#ff4b4b'},
         title="Distribuição dos Scores de Anomalia (Amostra Otimizada)",
         labels={'anomaly_score': 'Decision Score', 'count': 'Quantidade'}
     )
@@ -347,32 +351,29 @@ def plot_mttd_mtti_historico(historico_path="resultados/historico_metricas.json"
             
         df_hist = pd.DataFrame(dados)
         
-        # Verifica se o arquivo tem os dados necessários
         if df_hist.empty or 'MTTD_Segundos' not in df_hist.columns:
             return None
-            
+
         fig = px.line(
             df_hist, 
             x='Timestamp_Lote', 
-            y=['MTTD_Segundos', 'MTTI_Segundos'], # Passando as duas métricas juntas
+            y=['MTTD_Segundos', 'MTTI_Segundos'],
             markers=True,
-            title="Evolução do Tempo de Resposta a Incidentes (RCA)",
+            title="Evolução do Tempo de Resposta (MTTD vs MTTI)",
             labels={
                 'Timestamp_Lote': 'Horário do Lote', 
-                'value': 'Tempo em Segundos',
+                'value': 'Tempo (Segundos)',
                 'variable': 'Métrica'
             }
         )
         
-        # Estilizando as linhas (MTTD em Amarelo, MTTI em Laranja)
         fig.update_traces(marker=dict(size=8, line=dict(width=2, color='DarkSlateGrey')))
         
-        # Fundo transparente e adequação ao tema
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)', 
             paper_bgcolor='rgba(0,0,0,0)',
             font_color='white',
-            legend_title_text='Fases do RCA',
+            legend_title_text='Métrica RCA',
             xaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)'),
             yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.2)')
         )

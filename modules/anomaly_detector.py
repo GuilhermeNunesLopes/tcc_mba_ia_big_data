@@ -118,7 +118,8 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, best_th
                 raise ValueError("Algoritmo desconhecido. Escolha 'iforest' ou 'ocsvm'.")
         else:
             # Fallback genérico caso rode em produção sem label
-            model = IsolationForest(n_estimators=300, contamination=contamination, random_state=42) if algorithm == "iforest" else OneClassSVM(nu=0.05)
+            #model = IsolationForest(n_estimators=300, contamination=contamination, random_state=42) if algorithm == "iforest" else OneClassSVM(nu=0.05)
+            model = IsolationForest(n_estimators=300, contamination=contamination, random_state=42) if algorithm == "iforest" else OneClassSVM(kernel='linear', nu=contamination)
             model.fit(X_tfidf)
     else:
         print(f"Fase de Teste: Usando modelo {algorithm.upper()} e threshold previamente treinados.")

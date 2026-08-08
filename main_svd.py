@@ -34,7 +34,10 @@ def ler_configuracoes():
             return config.get("pastas", []), config.get("taxa_contaminacao", "auto"), config.get("algoritmo", "iforest")
     except (FileNotFoundError, json.JSONDecodeError):
         pastas_padrao = [
-            "experimento/test2"
+            "experimento/test2",
+            "docker/meus_logs",
+            "minikube/k8s-chaos/logs",
+            "experimento/test1"
         ] 
         return pastas_padrao, "auto", "iforest"
 
@@ -177,11 +180,15 @@ def processar_logs_em_lote():
     # ==========================================
     # TRACKING DE INCIDENTES (MTTD)
     # ==========================================
+    # O t0 já foi registrado em tracker.start_injection(lote_id) no início do fluxo.
+    # ==========================================
+    # TRACKING DE INCIDENTES (MTTD)
+    # ==========================================
     # Ajuste T0: Tenta capturar a hora real do erro mais antigo deste lote para métricas precisas
-    if not df_test.empty and 'Timestamp' in df_test.columns:
-        ts_min = pd.to_datetime(df_test['Timestamp'], errors='coerce').min()
-        if pd.notnull(ts_min):
-            tracker.incidents[lote_id]['t0'] = ts_min.timestamp()
+    #if not df_test.empty and 'Timestamp' in df_test.columns:
+    #    ts_min = pd.to_datetime(df_test['Timestamp'], errors='coerce').min()
+    #    if pd.notnull(ts_min):
+    #        tracker.incidents[lote_id]['t0'] = ts_min.timestamp()
 
     # ==========================================
     # FASE 1: TREINAMENTO DO MODELO
@@ -254,9 +261,10 @@ def processar_logs_em_lote():
 
         # Injeta os valores reais no dicionário para o Dashboard exibir
         if metricas_ml is not None:
-            metricas_ml['F1_Score'] = round(float(f1), 4)
-            metricas_ml['Precision'] = round(float(prec), 4)
-            metricas_ml['Recall'] = round(float(rec), 4)
+           metricas_ml['PR_AUC'] = round(float(pr_auc), 4)  # <-- Adicione esta linha
+           metricas_ml['F1_Score'] = round(float(f1), 4)
+           metricas_ml['Precision'] = round(float(prec), 4)
+           metricas_ml['Recall'] = round(float(rec), 4)
 
     # [MARCADOR T1]: Detecção Concluída
     tracker.mark_detected(lote_id)

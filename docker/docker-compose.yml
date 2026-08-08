@@ -99,19 +99,19 @@ services:
       - fluentd
 
   # --- GERADOR DE CAOS ALEATÓRIO CENTRALIZADO ---
-  caos-aleatorio:
-    image: docker:cli
-    container_name: caos-aleatorio
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./chaos.sh:/chaos.sh:ro
-    command: sh /chaos.sh
-    depends_on:
-      - api
-      - redis
-      - worker
-    restart: always
-
+  #caos-aleatorio:
+  #  image: docker:cli
+  #  container_name: caos-aleatorio
+  #  volumes:
+  #    - /var/run/docker.sock:/var/run/docker.sock
+  #    - ./chaos.sh:/chaos.sh:ro
+  #  command: sh /chaos.sh
+  #  depends_on:
+  #    - api
+  #    - redis
+  #    - worker
+  #  restart: always
+#
 networks:
   rede-caos:
     name: rede-caos 

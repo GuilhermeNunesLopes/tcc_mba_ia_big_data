@@ -39,12 +39,16 @@ def plot_anomaly_timeline_plotly(df):
         df_plot, 
         x=x_col, 
         y='anomaly_score', 
-        color='is_anomaly',
-        color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Cores mais vibrantes
+        color='pred_is_anomaly',
+        # Mapeamento duplo (int e bool) para garantir contraste total: Verde vs Vermelho Alerta
+        color_discrete_map={
+            0: '#00FF66', 1: '#FF2A2A',
+            False: '#00FF66', True: '#FF2A2A'
+        }, 
+        size='tamanho_ponto',
         title="Linha do Tempo de Detecção de Anomalias",
         labels={x_col: x_label, 'anomaly_score': 'Decision Score (Gravidade)'},
         hover_data=hover_cols,
-        opacity=0.5, # Deixa os pontos levemente transparentes para sobreposição ficar bonita
         render_mode='webgl'
     )
     
@@ -96,9 +100,12 @@ def plot_anomaly_distribution_plotly(df):
     fig = px.histogram(
         df_plot, 
         x='anomaly_score', 
-        color='is_anomaly', 
+        color='pred_is_anomaly', 
         barmode='overlay',
-        color_discrete_map={False: '#1f77b4', True: '#ff4b4b'}, # Mesmas cores da timeline
+        color_discrete_map={
+            0: '#1f77b4', 1: '#ff4b4b',
+            False: '#1f77b4', True: '#ff4b4b'
+        }, 
         title="Distribuição dos Scores de Anomalia (Amostra Otimizada)",
         labels={'anomaly_score': 'Decision Score', 'count': 'Quantidade'}
     )

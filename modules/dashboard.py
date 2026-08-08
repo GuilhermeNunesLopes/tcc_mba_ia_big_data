@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 import json
 import streamlit.components.v1 as components
+import numpy as np
 
 # Importando o módulo de visualização
 import visualizer as visualizer
@@ -16,9 +17,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-PASTAS_DISPONIVEIS = ["logs_filtrados"]
+PASTAS_DISPONIVEIS = ["logs_filtrados", "docker/meus_logs", "minikube/k8s-chaos/logs","experimento/test1","experimento/test2"]
 
-@st.cache_data(show_spinner=False)
+# MUDANÇA: Exibe spinner ao carregar e indexar os Parquets
+@st.cache_data(show_spinner="📥 Indexando dados de telemetria em memória...")
 def carregar_dados_otimizado(caminho_arquivo, timestamp_modificacao):
     df = pd.read_parquet(caminho_arquivo)
     for col in ['Source_Folder', 'Level']:
@@ -26,15 +28,35 @@ def carregar_dados_otimizado(caminho_arquivo, timestamp_modificacao):
             df[col] = df[col].astype('category')
     return df
 
-@st.cache_data(show_spinner="Computando topologia...")
+@st.cache_data(show_spinner="🧩 Computando matriz de similaridade e topologia...")
 def gerar_grafo_otimizado(df_selecionado, tipo="normal"):
     if tipo == "normal":
         return visualizer.generate_interactive_network(df_selecionado)
     return visualizer.graph_spring_layout(df_selecionado)
 
+def format_duration(seconds):
+    """
+    Converte segundos brutos em escala humana (ms, s, m s, h m).
+    """
+    if seconds is None or np.isnan(seconds) or seconds < 0:
+        return "N/A"
+    
+    if seconds < 1.0:
+        return f"{seconds * 1000:.0f} ms"
+    elif seconds < 60.0:
+        return f"{seconds:.2f} s"
+    elif seconds < 3600.0:
+        minutos = int(seconds // 60)
+        segs = int(seconds % 60)
+        return f"{minutos}m {segs}s"
+    else:
+        horas = int(seconds // 3600)
+        minutos = int((seconds % 3600) // 60)
+        return f"{horas}h {minutos}m"
+
 def aplicar_tema_profissional(fig, tipo_grafico="scatter"):
     """
-    Injeta o Design System de monitoramento nos gráficos do Plotly.
+    Injeta o Design System de monitoramento nos gráficos do Plotly com alto contraste.
     """
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', 
@@ -46,17 +68,27 @@ def aplicar_tema_profissional(fig, tipo_grafico="scatter"):
         hoverlabel=dict(bgcolor="#161b22", font_size=13, font_family="Inter", bordercolor="#30363d")
     )
     
-    if tipo_grafico in ["scatter", "histogram"]:
-        fig.for_each_trace(lambda t: t.update(
-            marker_color='#f85149' if str(t.name) in ['1', 'True', 'true'] else '#21262d',
-            marker_line_width=0,
-            opacity=0.85 if str(t.name) in ['1', 'True', 'true'] else 0.5
-        ))
+    if tipo_grafico == "scatter":
+        for trace in fig.data:
+            trace_name = str(trace.name).lower()
+            if any(k in trace_name for k in ['1', 'true', 'anomalia']):
+                trace.update(marker=dict(color='#FF0000', size=10, opacity=1.0))
+            else:
+                trace.update(marker=dict(color='#00FF00', size=5, opacity=0.6))
+
+    elif tipo_grafico == "histogram":
+        for trace in fig.data:
+            trace_name = str(trace.name).lower()
+            if any(k in trace_name for k in ['1', 'true', 'anomalia']):
+                trace.update(marker_color='#FF4B4B', opacity=0.85)
+            else:
+                trace.update(marker_color='#1F77B4', opacity=0.5)
+
     elif tipo_grafico == "line_mttd":
-        # MTTD = Laranja, MTTI = Azul para máxima clareza
         cores = ['#d29922', '#58a6ff']
         for i, trace in enumerate(fig.data):
             trace.update(line=dict(color=cores[i % len(cores)], width=3), marker=dict(size=6, color=cores[i % len(cores)]))
+
     elif tipo_grafico == "line_score":
         fig.for_each_trace(lambda t: t.update(line=dict(color='#238636', width=3), marker=dict(size=6, color='#238636')))
         
@@ -94,16 +126,11 @@ def main():
             max-width: 100% !important; 
         }
 
-        /* ---------------------------------------------------
-           Escopo SEGURO do Box-Sizing para evitar o Erro React 185
-           --------------------------------------------------- */
         .fixed-top-bar, .kpi-wrapper, .kpi-card, [data-testid="stForm"] {
             box-sizing: border-box !important;
         }
 
-        /* ---------------------------------------------------
-           TOP BAR (Fixa)
-           --------------------------------------------------- */
+        /* TOP BAR Fixa */
         .fixed-top-bar {
             position: fixed;
             top: 0;
@@ -112,7 +139,7 @@ def main():
             height: 55px;
             background-color: var(--bg-app);
             border-bottom: 1px solid var(--border-color);
-            z-index: 999999;
+            z-index: 9999 !important; /* Ajustado para não cobrir toasts */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -124,13 +151,11 @@ def main():
         .status-zone { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); font-weight: 500; }
         .status-dot { width: 8px; height: 8px; background: var(--color-success); border-radius: 50%; box-shadow: 0 0 8px var(--color-success); }
 
-        /* ---------------------------------------------------
-           COMMAND BAR (Filtros Fixos)
-           --------------------------------------------------- */
+        /* COMMAND BAR (Filtros Fixos) */
         [data-testid="stForm"] {
             position: sticky;
             top: 55px;
-            z-index: 99998;
+            z-index: 9998 !important; /* Ajustado para ficar abaixo dos avisos */
             background-color: rgba(22, 27, 34, 0.95);
             backdrop-filter: blur(10px);
             border: none !important;
@@ -140,10 +165,23 @@ def main():
             border-radius: 0;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
+        [data-testid="stToastContainer"], div[data-testid="stToast"] {
+            z-index: 1000000 !important; /* Fica acima da Top Bar e do Form */
+            top: 65px !important;        /* Empurra o aviso para baixo do menu fixo */
+            right: 20px !important;
+        }
+        /* ESTILIZAÇÃO DO SPINNER E ALERTAS STREAMLIT */
+        .stSpinner > div {
+            border-top-color: var(--color-info) !important;
+        }
+        div[data-testid="stToast"] {
+            background-color: var(--bg-panel) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-main) !important;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4) !important;
+        }
 
-        /* ---------------------------------------------------
-           SISTEMA DE GRIDS RESPONSIVOS E CORES
-           --------------------------------------------------- */
+        /* GRIDS E KPIS */
         .kpi-wrapper {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -171,9 +209,6 @@ def main():
         .val-info { color: var(--color-info); }       
         .val-neutral { color: var(--text-main); }
 
-        /* ---------------------------------------------------
-           PAINÉIS DE CONTEÚDO
-           --------------------------------------------------- */
         [data-testid="column"] {
             background-color: var(--bg-panel);
             border: 1px solid var(--border-color);
@@ -191,13 +226,9 @@ def main():
             border-bottom: 1px solid var(--border-color);
         }
 
-        /* ---------------------------------------------------
-           LOG EXPLORER (Terminal) - CORRIGIDO O REACT LOOP
-           --------------------------------------------------- */
         div[data-testid="stDataFrameResizable"] {
             border: 1px solid var(--border-color) !important;
             border-radius: 6px !important;
-            /* width: 100% foi removido daqui para não brigar com o Streamlit */
         }
         div[data-testid="stDataFrameResizable"] table { 
             background-color: var(--bg-app) !important; 
@@ -265,26 +296,63 @@ def main():
             data_max = df_final['Timestamp'].max().date()
 
     # ==========================================
-    # COMMAND BAR STICKY (Acompanha a rolagem)
+    # COMMAND BAR STICKY (Filtros Fixos)
     # ==========================================
     with st.form(key='global_filters'):
-        col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns([3, 2, 2, 2, 2])
+        # Expandimos para 7 colunas proporcionais para acomodar a Sensibilidade
+        col_f1, col_f2, col_f3, col_f4, col_f5, col_f6, col_f7 = st.columns([2.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
         
         with col_f1:
-            pastas_selecionadas = st.multiselect("Namespaces Monitorados", options=PASTAS_DISPONIVEIS, default=PASTAS_DISPONIVEIS)
+            pastas_selecionadas = st.multiselect("Namespaces", options=PASTAS_DISPONIVEIS, default=PASTAS_DISPONIVEIS)
         with col_f2:
-            algoritmo_selecionado = st.selectbox("Modelo de Decisão", options=["iforest", "ocsvm"], format_func=lambda x: "iForest (Tree)" if x == "iforest" else "OCSVM (Boundary)")
+            algoritmo_selecionado = st.selectbox("Modelo", options=["iforest", "ocsvm"], format_func=lambda x: "iForest" if x == "iforest" else "OCSVM")
         with col_f3:
-            datas_selecionadas = st.date_input("Janela de Data", value=(max(data_min, data_max - timedelta(days=30)), data_max))
+            reducao_selecionada = st.selectbox("Redução", options=["pca", "svd"], format_func=lambda x: "PCA" if x == "pca" else "SVD")
         with col_f4:
-            horas_selecionadas = st.slider("Timeframe", value=(dtime(0, 0), dtime(23, 59)), format="HH:mm")
+            datas_selecionadas = st.date_input("Data", value=(max(data_min, data_max - timedelta(days=30)), data_max))
         with col_f5:
+            horas_selecionadas = st.slider("Timeframe", value=(dtime(0, 0), dtime(23, 59)), format="HH:mm")
+        with col_f6:
+            # NOVO: Slider de sensibilidade na 6ª coluna
+            sensibilidade = st.slider("Alerta (%)", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+        with col_f7:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             submit_button = st.form_submit_button(label='Aplicar Filtros', use_container_width=True)
 
+    # LÓGICA AO CLICAR NO BOTÃO:
     if submit_button:
+        tempo_inicial_parquet = os.path.getmtime(arquivo_dados) if os.path.exists(arquivo_dados) else 0
+
+        # Salva o config.json enviando o valor da sensibilidade convertido para decimal (ex: 3.0% vira 0.03)
         with open("config.json", "w", encoding='utf-8') as f:
-            json.dump({"pastas": pastas_selecionadas, "taxa_contaminacao": 0.05, "algoritmo": algoritmo_selecionado}, f)
+            json.dump({
+                "pastas": pastas_selecionadas, 
+                "taxa_contaminacao": sensibilidade / 100.0,  # <--- Injeta a Sensibilidade aqui
+                "algoritmo": algoritmo_selecionado,
+                "reducao": reducao_selecionada
+            }, f)
+
+        with st.spinner(f"⚙️ Re-treinando modelo ({algoritmo_selecionado.upper()} + {reducao_selecionada.upper()}) e processando logs..."):
+            st.toast("⚡ Solicitando reprocessamento ao motor de ML...", icon="🚀")
+            
+            processado = False
+            for _ in range(60): # Aguarda até 30 segundos
+                time.sleep(0.5)
+                if os.path.exists(arquivo_dados):
+                    mod_atual = os.path.getmtime(arquivo_dados)
+                    if mod_atual > tempo_inicial_parquet:
+                        processado = True
+                        break
+            
+            st.cache_data.clear()
+            
+            if processado:
+                st.toast("✅ Dashboard atualizado com os novos dados!", icon="🎉")
+            else:
+                st.toast("⚠️ O motor demorou para responder. Verifique o terminal do main.py.", icon="⏳")
+                
+            time.sleep(0.5)
+            st.rerun()
 
     if isinstance(datas_selecionadas, tuple) and len(datas_selecionadas) == 2:
         df_final = df_final[(df_final['Timestamp'] >= datetime.combine(datas_selecionadas[0], horas_selecionadas[0])) & 
@@ -294,10 +362,13 @@ def main():
     normais = df_final[df_final['pred_is_anomaly'] == 0]
 
     # ==========================================
-    # RESPONSIVE KPI GRID
+    # RESPONSIVE KPI GRID (COM FORMATADOR DE TEMPO)
     # ==========================================
     pr_auc_str = f"{metricas.get('PR_AUC', 0):.1%}" if metricas.get('PR_AUC') else "N/A"
     
+    mttd_humano = format_duration(metricas.get('MTTD_Segundos', 0))
+    mtti_humano = format_duration(metricas.get('MTTI_Segundos', 0))
+
     html_kpis = f"""
     <div class="kpi-wrapper">
         <div class="kpi-card">
@@ -306,11 +377,11 @@ def main():
         </div>
         <div class="kpi-card">
             <div class="kpi-title">MTTD (Mean Time to Detect)</div>
-            <div class="kpi-value val-warning">{metricas.get('MTTD_Segundos', 0)}s</div>
+            <div class="kpi-value val-warning">{mttd_humano}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">MTTI (Mean Time to Investigate)</div>
-            <div class="kpi-value val-info">{metricas.get('MTTI_Segundos', 0)}s</div>
+            <div class="kpi-value val-info">{mtti_humano}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Qualidade PR-AUC</div>
@@ -388,34 +459,101 @@ def main():
                             components.html(f.read(), height=500, scrolling=False)
 
     # ==========================================
-    # LOG EXPLORER
+    # LOG EXPLORER & TRIAGEM DE ALERTAS
     # ==========================================
     st.markdown("""
-    <div style="margin-top: 16px;">
+    <div style="margin-top: 24px;">
         <h5 style="border-bottom: 1px solid #30363d; padding-bottom: 8px;">Log Explorer (Alert Triage - P@K)</h5>
     </div>
     """, unsafe_allow_html=True)
     
+    # 1. VISÃO NUMÉRICA COMPARATIVA: Normais vs Anômalos
+    total_logs_count = len(df_final)
+    total_anomalias_count = len(anomalias)
+    total_normais_count = len(normais)
+    pct_anomalias = (total_anomalias_count / total_logs_count * 100) if total_logs_count > 0 else 0
+
+    col_m1, col_m2, col_m3 = st.columns(3)
+    with col_m1:
+        st.markdown(f"""
+        <div style="background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; text-align: center;">
+            <span style="color: #8b949e; font-size: 11px; text-transform: uppercase; font-weight: 600;">Logs Normais</span>
+            <h3 style="color: #238636; margin: 4px 0 0 0; font-family: 'JetBrains Mono', monospace; border: none; padding: 0;">{total_normais_count:,}</h3>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_m2:
+        st.markdown(f"""
+        <div style="background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; text-align: center;">
+            <span style="color: #8b949e; font-size: 11px; text-transform: uppercase; font-weight: 600;">Logs Anômalos</span>
+            <h3 style="color: #f85149; margin: 4px 0 0 0; font-family: 'JetBrains Mono', monospace; border: none; padding: 0;">{total_anomalias_count:,}</h3>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_m3:
+        st.markdown(f"""
+        <div style="background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; text-align: center;">
+            <span style="color: #8b949e; font-size: 11px; text-transform: uppercase; font-weight: 600;">Proporção de Anomalia</span>
+            <h3 style="color: #d29922; margin: 4px 0 0 0; font-family: 'JetBrains Mono', monospace; border: none; padding: 0;">{pct_anomalias:.2f}%</h3>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
+
+    # 2. TABELA DE TRIAGEM COM BUSCA E LOGS REAIS
     if not anomalias.empty:
-        k_selecionado = st.slider("Amostragem Crítica (Top N):", min_value=5, max_value=100, value=20, step=5)
+        # ---- NOVO: LAYOUT DE BUSCA E SLIDER ----
+        col_search, col_slider = st.columns([3, 1])
+        with col_search:
+            busca_texto = st.text_input("🔍 Buscar termo nos logs anômalos (ex: Timeout, Failed, Error):", "")
+        with col_slider:
+            k_selecionado = st.slider("Amostragem Crítica (Top N):", min_value=5, max_value=100, value=20, step=5)
+            
         k_valor = min(k_selecionado, len(anomalias))
         
+        # Filtra os top K logs com menores decision scores (mais anômalos)
         top_k_logs = anomalias.nsmallest(k_valor, 'anomaly_score').copy()
-        top_k_logs['Triage (True Positive)'] = False 
         
-        df_editado = st.data_editor(
-            top_k_logs[['Triage (True Positive)', 'Source_Folder', 'Template', 'anomaly_score']],
-            hide_index=True,
-            use_container_width=True,
-            disabled=['Source_Folder', 'Template', 'anomaly_score'] 
-        )
-        
-        acertos = df_editado['Triage (True Positive)'].sum()
-        precisao_k = acertos / k_valor if k_valor > 0 else 0
-        
-        st.markdown(f"<div style='margin-top:10px; color:#8b949e; font-size:13px; font-family: Inter;'><strong>SLA Report:</strong> Operador marcou {acertos} anomalias como incidentes reais dentre {k_valor} analisadas. Precisão de Alerta da query atual: <span style='color:#58a6ff; font-weight: 600;'>{precisao_k:.1%}</span></div>", unsafe_allow_html=True)
+        # ---- NOVO: APLICAÇÃO DO FILTRO DE BUSCA ----
+        if busca_texto:
+            top_k_logs = top_k_logs[top_k_logs['Raw_Log'].str.contains(busca_texto, case=False, na=False)]
+            
+        # Verifica se sobrou algo após a busca
+        if top_k_logs.empty:
+            st.warning(f"Nenhuma anomalia encontrada contendo o termo '{busca_texto}'.")
+        else:
+            top_k_logs['Triage (True Positive)'] = False 
+            
+            # ---- NOVO: GARANTE A COLUNA CLUSTER_ID (DBSCAN) ----
+            if 'cluster_id' not in top_k_logs.columns:
+                top_k_logs['cluster_id'] = "Isolado"
+            else:
+                top_k_logs['cluster_id'] = top_k_logs['cluster_id'].fillna("Isolado").astype(str)
+            
+            # Exibe o data editor
+            df_editado = st.data_editor(
+                top_k_logs[['Triage (True Positive)', 'Source_Folder', 'cluster_id', 'Raw_Log', 'anomaly_score']],
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Triage (True Positive)": st.column_config.CheckboxColumn(
+                        "Confirmar Incidente?",
+                        help="Marque para validar se este log é uma anomalia real",
+                        default=False
+                    ),
+                    "Source_Folder": st.column_config.TextColumn("Origem", width="small"),
+                    "cluster_id": st.column_config.TextColumn("RCA Cluster", width="small"),
+                    "Raw_Log": st.column_config.TextColumn("Log Real (Texto Completo)", width="large"),
+                    "anomaly_score": st.column_config.NumberColumn("Decision Score", format="%.4f", width="small")
+                },
+                disabled=['Source_Folder', 'cluster_id', 'Raw_Log', 'anomaly_score'] 
+            )
+            
+            acertos = df_editado['Triage (True Positive)'].sum()
+            # Ajusta o denominador para o tamanho real da tabela (caso a busca tenha filtrado resultados)
+            tamanho_tabela_exibida = len(top_k_logs)
+            precisao_k = acertos / tamanho_tabela_exibida if tamanho_tabela_exibida > 0 else 0
+            
+            st.markdown(f"<div style='margin-top:10px; color:#8b949e; font-size:13px; font-family: Inter;'><strong>SLA Report:</strong> Operador marcou {acertos} anomalias como incidentes reais dentre {tamanho_tabela_exibida} exibidas. Precisão de Alerta da query atual: <span style='color:#58a6ff; font-weight: 600;'>{precisao_k:.1%}</span></div>", unsafe_allow_html=True)
     else:
         st.markdown("<div style='padding: 20px 0; color: #238636; font-size:14px; font-family: Inter;'>✓ Estado Nominal do Sistema. A query não retornou logs na zona de alerta.</div>", unsafe_allow_html=True)
-
 if __name__ == "__main__":
     main()

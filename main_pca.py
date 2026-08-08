@@ -2,11 +2,11 @@ import os
 import time
 from datetime import date
 import pandas as pd
-import numpy as np # Importação do numpy adicionada no topo
 import subprocess
 import json
 import platform
 import atexit
+import numpy as np
 
 # Importando apenas os módulos de processamento e IA (sem o dashboard)
 import modules.parse_system as parse_system
@@ -15,7 +15,7 @@ import modules.anomaly_detector as anomaly_detector
 from modules.mttd_mtti import RCA_MetricsTracker
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import DBSCAN
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, precision_recall_curve, auc, precision_score, recall_score, f1_score
 import scipy.sparse as sp
 from sklearn.preprocessing import StandardScaler
 
@@ -30,20 +30,19 @@ def ler_configuracoes():
     try:
         with open("config.json", "r", encoding='utf-8') as f:
             config = json.load(f)
-            # Retorna as pastas, a contaminação e o ALGORITMO (padrão: iforest)
             return config.get("pastas", []), config.get("taxa_contaminacao", "auto"), config.get("algoritmo", "iforest")
     except (FileNotFoundError, json.JSONDecodeError):
         pastas_padrao = [
-           # "minikube/k8s-chaos/logs",
-           # "docker/meus_logs",
-            "logs_filtrados"
+            "experimento/test2",
+            "docker/meus_logs",
+            "minikube/k8s-chaos/logs",
+            "experimento/test1"
         ] 
         return pastas_padrao, "auto", "iforest"
 
 def processar_logs_em_lote():
     print(f"\n[{time.strftime('%H:%M:%S')}] 🔄 Iniciando varredura de logs...")
     
-    # Agora recebemos as três variáveis dinâmicas do portal
     pastas_ativas, taxa_contaminacao_ativa, algoritmo_ativo = ler_configuracoes()
 
     if not pastas_ativas:
@@ -54,14 +53,19 @@ def processar_logs_em_lote():
     tracker.start_injection(lote_id)
 
     df_list = []
+    
+    # Consumindo o gerador em lotes (Map-Reduce de Memória)
     for pasta in pastas_ativas:
         if os.path.exists(pasta):
             read_generic = parse_system.read_dir_to_temps(pasta)
             for path in read_generic:
-                df_p = parse_system.automatic_drain_parse(path)
-                if not df_p.empty:
-                    df_p['Source_Folder'] = pasta
-                    df_list.append(df_p)
+                nome_da_fonte = os.path.basename(pasta)
+                gerador_lotes = parse_system.automatic_drain_parse(path, nome_fonte=nome_da_fonte, tamanho_lote=100000)
+                
+                for df_lote in gerador_lotes:
+                    if not df_lote.empty:
+                        df_lote['Source_Folder'] = pasta
+                        df_list.append(df_lote)
 
     os.makedirs("resultados", exist_ok=True)
     today = date.today().strftime("%Y-%m-%d")
@@ -109,89 +113,73 @@ def processar_logs_em_lote():
         return
         
     # ==========================================
+    # ENGENHARIA DE FEATURES TEMPORAIS
+    # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features: Calculando Contexto Temporal...")
 
-    # 1. Garante o formato de data correto
     df_logs['Timestamp'] = pd.to_datetime(df_logs['Timestamp'], errors='coerce')
     df_logs = df_logs.dropna(subset=['Timestamp'])
 
-    # 2. Ordena por pasta e tempo para os cálculos temporais fazerem sentido
     df_logs = df_logs.sort_values(by=['Source_Folder', 'Timestamp']).reset_index(drop=True)
-
-    # 3. CRIA AS COLUNAS QUE ESTAVAM FALTANDO
     df_logs['time_delta'] = df_logs.groupby('Source_Folder')['Timestamp'].diff().dt.total_seconds().fillna(0)
 
     temp_indexed = df_logs.set_index('Timestamp')
     df_logs['log_rate_5m'] = temp_indexed.groupby('Source_Folder')['Raw_Log'].rolling('5min').count().values
 
-    # 4. Ordenação cronológica final obrigatória antes de fazer o Split
+    # Ordenação cronológica final
     df_logs = df_logs.sort_values(by='Timestamp').reset_index(drop=True)
 
-    # 1. DIVIDIR OS DADOS PRIMEIRO (Evita Data Leakage no TF-IDF, Scaler e SVD)
+    # Divisão Cronológica dos dados (80% Treino / 20% Teste)
     print(f"[{time.strftime('%H:%M:%S')}] 🔀 Dividindo os dados CRONOLOGICAMENTE (80% Passado / 20% Futuro)...")
     df_train, df_test = train_test_split(df_logs, test_size=0.2, shuffle=False)
-    
-    # IMPORTANTE: Reseta os índices para evitar descompasso com as matrizes numpy
-    df_train = df_train.reset_index(drop=True)
-    df_test = df_test.reset_index(drop=True)
 
     # ==========================================
     # 2. FIT/TREINO (Aprendendo apenas com o passado)
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features (Treino)...")
     
-    # Aprende o vocabulário TF-IDF
+    # 1. Vetorização TF-IDF
     tfidf_train, vectorizer = preprocessor.tfidf_vectorize(df_train, vectorizer=None)
     
-    # Aprende e aplica o TruncatedSVD para redução de dimensionalidade
-    print(f"[{time.strftime('%H:%M:%S')}] 📉 Aplicando TruncatedSVD...")
-    svd_train, svd_model = preprocessor.apply_truncated_svd(tfidf_train, svd_model=None, n_components=100)
+    # 2. Redução de Dimensionalidade via PCA
+    print(f"[{time.strftime('%H:%M:%S')}] 📉 Aplicando PCA...")
+    pca_train, pca_model = preprocessor.apply_pca(tfidf_train, pca_model=None, n_components=100)
     
-    # Normaliza features temporais
+    # 3. Normalização das Features Temporais
     scaler = StandardScaler()
     temp_train = scaler.fit_transform(df_train[['time_delta', 'log_rate_5m']])
     
-    # Combina (SVD retorna matriz densa, usamos np.hstack)
-    X_train = np.hstack((svd_train, temp_train))
+    # 4. Combinação dos componentes do PCA com as features temporais padronizadas
+    X_train = np.hstack((pca_train, temp_train))
 
     # ==========================================
     # 3. TRANSFORM/TESTE (Aplicando regras no futuro)
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] ⏳ Engenharia de Features (Teste)...")
     
-    # Aplica o vocabulário existente aos dados novos
+    # 1. Aplica o mesmo TF-IDF
     tfidf_test, _ = preprocessor.tfidf_vectorize(df_test, vectorizer=vectorizer)
     
-    # Aplica a mesma redução de dimensionalidade
-    svd_test, _ = preprocessor.apply_truncated_svd(tfidf_test, svd_model=svd_model)
+    # 2. Aplica o mesmo PCA
+    pca_test, _ = preprocessor.apply_pca(tfidf_test, pca_model=pca_model)
     
-    # Aplica a mesma escala temporal
+    # 3. Aplica a mesma escala temporal
     temp_test = scaler.transform(df_test[['time_delta', 'log_rate_5m']])
     
-    # Combina matriz de teste
-    X_test = np.hstack((svd_test, temp_test))
-
-    # ==========================================
-    # TRACKING DE INCIDENTES (MTTD)
-    # ==========================================
-    # Ajuste T0: Tenta capturar a hora real do erro mais antigo deste lote para métricas precisas
-    if not df_test.empty and 'Timestamp' in df_test.columns:
-        ts_min = pd.to_datetime(df_test['Timestamp'], errors='coerce').min()
-        if pd.notnull(ts_min):
-            tracker.incidents[lote_id]['t0'] = ts_min.timestamp()
+    # 4. Combinação para os dados de teste
+    X_test = np.hstack((pca_test, temp_test))
 
     # ==========================================
     # FASE 1: TREINAMENTO DO MODELO
     # ==========================================
     print(f"[{time.strftime('%H:%M:%S')}] 🧠 Treinando modelo {algoritmo_ativo.upper()}...")
     
-    # Desempacota as 5 variáveis (incluindo o threshold que será herdado pelo Teste)
     _, modelo_treinado, _, _, threshold_treinado = anomaly_detector.process_log_anomalies(
         df_original=df_train, 
         X_tfidf=X_train, 
         contamination=taxa_contaminacao_ativa,
         model=None,
-        algorithm=algoritmo_ativo # <--- Usa a escolha do portal
+        algorithm=algoritmo_ativo
     )
     
     # ==========================================
@@ -200,8 +188,7 @@ def processar_logs_em_lote():
     print(f"[{time.strftime('%H:%M:%S')}] 🎯 Aplicando inferência e extraindo métricas...")
     
     colunas_dataset = df_test.columns.tolist()
-    # REMOVIDO 'pred_is_anomaly' para não confundir predição com rótulo real
-    #colunas_possiveis_label = ['Label', 'label', 'Anomaly', 'anomaly', 'Is_Anomaly', 'y_true']
+    # REMOVIDO 'pred_is_anomaly' para evitar falso Ground Truth
     colunas_possiveis_label = ['Label', 'label', 'Anomaly', 'anomaly', 'Is_Anomaly', 'y_true']
     coluna_alvo = next((col for col in colunas_possiveis_label if col in colunas_dataset), None)
 
@@ -209,7 +196,6 @@ def processar_logs_em_lote():
         y_verdadeiro = df_test[coluna_alvo].apply(
             lambda x: 1 if str(x).strip().lower() in ['anomaly', '1', 'true', 'anômalo', 'fail'] else 0
         ).values
-        print(f"[{time.strftime('%H:%M:%S')}] 🎯 Ground Truth detectado na coluna '{coluna_alvo}' ({np.sum(y_verdadeiro)} anomalias reais).")
     else:
         print(f"[{time.strftime('%H:%M:%S')}] ⚠️ Modo Puramente Não Supervisionado (sem coluna de rótulo real).")
         y_verdadeiro = None
@@ -224,11 +210,10 @@ def processar_logs_em_lote():
         algorithm=algoritmo_ativo 
     )
 
-    if metricas_ml is None:
-        metricas_ml = {}
-
     # Otimização Matemática do Threshold (Se houver Ground Truth)
     if y_verdadeiro is not None and np.sum(y_verdadeiro) > 0:
+        print(f"[{time.strftime('%H:%M:%S')}] 📐 Calculando limiar ótimo via Precision-Recall Curve...")
+        
         scores_decision = -modelo_treinado.decision_function(X_test)
         precisions_curve, recalls_curve, thresholds_curve = precision_recall_curve(y_verdadeiro, scores_decision)
         pr_auc = auc(recalls_curve, precisions_curve)
@@ -243,32 +228,14 @@ def processar_logs_em_lote():
         rec = recall_score(y_verdadeiro, df_resultado['pred_is_anomaly'], zero_division=0)
         f1 = f1_score(y_verdadeiro, df_resultado['pred_is_anomaly'], zero_division=0)
 
-        # FIX: INJETANDO PR_AUC NO DICIONÁRIO DE MÉTRICAS!
-        metricas_ml['PR_AUC'] = round(float(pr_auc), 4)
-        metricas_ml['F1_Score'] = round(float(f1), 4)
-        metricas_ml['Precision'] = round(float(prec), 4)
-        metricas_ml['Recall'] = round(float(rec), 4)
+        print(f"   -> Threshold Otimizado (Teste): {best_threshold_local:.4f}")
+        print(f"   -> F1-Score: {f1:.4f} | PR-AUC: {pr_auc:.4f}")
 
-    # ==========================================
-    # 📢 PAINEL VISÍVEL NO TERMINAL
-    # ==========================================
-    total_logs = len(df_resultado)
-    total_anomalias = (df_resultado['pred_is_anomaly'] == 1).sum()
-    pct_anomalias = (total_anomalias / total_logs * 100) if total_logs > 0 else 0
-
-    print("\n" + "="*65)
-    print(f"🚨 RESUMO DA DETECÇÃO DE ANOMALIAS - LOTE")
-    print("="*65)
-    print(f"📊 Total de Logs Analisados: {total_logs:,}")
-    print(f"🔴 Anomalias Detectadas:    {total_anomalias:,} ({pct_anomalias:.2f}%)")
-    print(f"🟢 Logs Normais:            {total_logs - total_anomalias:,}")
-    if 'PR_AUC' in metricas_ml:
-        print(f"🎯 PR-AUC:   {metricas_ml['PR_AUC']:.4f} | F1: {metricas_ml['F1_Score']:.4f}")
-        print(f"📈 Precisão: {metricas_ml['Precision']:.4f} | Recall: {metricas_ml['Recall']:.4f}")
-    else:
-        print("ℹ️ Métricas supervisionadas (PR-AUC) indisponíveis (dataset sem rótulo).")
-    print("="*65 + "\n")
-
+        if metricas_ml is not None:
+            metricas_ml['PR_AUC'] = round(float(pr_auc), 4)
+            metricas_ml['F1_Score'] = round(float(f1), 4)
+            metricas_ml['Precision'] = round(float(prec), 4)
+            metricas_ml['Recall'] = round(float(rec), 4)
 
     # [MARCADOR T1]: Detecção Concluída
     tracker.mark_detected(lote_id)
@@ -288,8 +255,6 @@ def processar_logs_em_lote():
     if qtd_anomalias > 2:
         print(f"[{time.strftime('%H:%M:%S')}] 🧩 Agrupando anomalias com DBSCAN...")
         
-        # Converte a matriz esparsa para densa apenas para as anomalias, garantindo que o DBSCAN funcione perfeitamente
-        # IMPORTANTE: Removido o .toarray() pois a matriz X_test já é densa após o SVD
         X_anomalias_denso = X_test[mask_anomalias]
         clusterizador = DBSCAN(eps=0.5, min_samples=4)
         labels_clusters = clusterizador.fit_predict(X_anomalias_denso)
@@ -354,7 +319,7 @@ def limpar_processos_antigos():
         pass
 
 def fechar_dashboard_atual():
-    """Garante que o dashboard atual feche se o main.py "crashar" ou fechar."""
+    """Garante que o dashboard atual feche se o main.py fechar."""
     global processo_dashboard
     if processo_dashboard is not None:
         processo_dashboard.terminate()
@@ -370,7 +335,6 @@ if __name__ == "__main__":
     print("🚀 Iniciando o Sistema de Detecção de Anomalias...")
     print("🖥️ Abrindo o Dashboard no navegador (Sempre na porta 8501)...")
     
-    # Caminho corrigido apontando para modules/dashboard.py
     comando = ["streamlit", "run", "modules/dashboard.py", "--server.port", "8501"]
     processo_dashboard = subprocess.Popen(comando)
     
@@ -390,13 +354,13 @@ if __name__ == "__main__":
             if os.path.exists("config.json"):
                 ultimo_json_modificado = os.path.getmtime("config.json")
             
-            for _ in range(20):
-                time.sleep(10)
-                if os.path.exists("config.json"):
-                    modificacao_atual = os.path.getmtime("config.json")
-                    if modificacao_atual > ultimo_json_modificado:
-                        print("\n🔔 Nova configuração detectada! Acordando o motor imediatamente...")
-                        break 
+            for _ in range(200):
+               time.sleep(1) # Checa a cada 1 segundo
+               if os.path.exists("config.json"):
+                   modificacao_atual = os.path.getmtime("config.json")
+                   if modificacao_atual > ultimo_json_modificado:
+                       print("\n🔔 Nova configuração detectada! Acordando o motor imediatamente...")
+                       break 
             
     except KeyboardInterrupt:
         print("\n🛑 Encerrando o sistema a pedido do usuário...")

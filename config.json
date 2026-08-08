@@ -1,1 +1,1 @@
-{"pastas": ["logs_filtrados"], "taxa_contaminacao": 0.05, "algoritmo": "ocsvm"}
+{"pastas": ["logs_filtrados", "docker/meus_logs", "minikube/k8s-chaos/logs", "experimento/test1", "experimento/test2"], "taxa_contaminacao": 0.055999999999999994, "algoritmo": "iforest", "reducao": "svd"}
