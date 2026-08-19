@@ -2,17 +2,22 @@ import os
 import time
 import pandas as pd
 from sklearn.utils import shuffle
-
+import sys
+from pathlib import Path
 # ==============================================================================
 # IMPORTAÇÃO DOS MÓDULOS DA ARQUITETURA
 # ==============================================================================
 # Reaproveita os scripts já validados na pasta 'modules'
-from ..modules.dowloand_dataset_hugging import download_dataset_file
-from ..modules.parse_system import automatic_drain_parse
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from modules.dowloand_dataset_hugging import download_dataset_file
+from modules.parse_system import automatic_drain_parse
+
 
 def preparar_experimento_hdfs(
-    log_path='HDFS.log', 
-    label_path='anomaly_label.csv', 
+    log_path='experimento/HDFS.log', 
+    label_path='experimento/anomaly_label.csv', 
     output_dir='resultados'
 ):
     print("="*60)
@@ -40,8 +45,8 @@ def preparar_experimento_hdfs(
     print(f"\n[2/4] Lendo logs brutos e extraindo templates com parse_system.py...")
     
     # Aciona a sua função original que já carrega o drain3.ini com as máscaras corretas
-    df_parsed = automatic_drain_parse(log_path, nome_fonte="HDFS_TCC")
-    
+    parsed_generator = automatic_drain_parse(log_path, nome_fonte="HDFS_TCC")
+    df_parsed = pd.DataFrame(parsed_generator)
     # O parse_system retorna o dataframe com a coluna 'Raw_Log'. 
     # Vamos extrair o BlockId direto dela usando Regex.
     print("   -> Extraindo BlockIds estruturais das mensagens brutas...")

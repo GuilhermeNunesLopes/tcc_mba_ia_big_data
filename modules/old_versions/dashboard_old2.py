@@ -527,16 +527,10 @@ def main():
                 top_k_logs['cluster_id'] = "Isolado"
             else:
                 top_k_logs['cluster_id'] = top_k_logs['cluster_id'].fillna("Isolado").astype(str)
-
-            # ---- NOVO: GARANTE A COLUNA DE EXPLICABILIDADE (fallback para parquets antigos) ----
-            if 'Termos_Explicativos' not in top_k_logs.columns:
-                top_k_logs['Termos_Explicativos'] = "N/D (rode com a versão atual do pipeline)"
-            else:
-                top_k_logs['Termos_Explicativos'] = top_k_logs['Termos_Explicativos'].fillna("sem termos distintivos")
-
+            
             # Exibe o data editor
             df_editado = st.data_editor(
-                top_k_logs[['Triage (True Positive)', 'Source_Folder', 'cluster_id', 'Raw_Log', 'anomaly_score', 'Termos_Explicativos']],
+                top_k_logs[['Triage (True Positive)', 'Source_Folder', 'cluster_id', 'Raw_Log', 'anomaly_score']],
                 hide_index=True,
                 use_container_width=True,
                 column_config={
@@ -548,14 +542,9 @@ def main():
                     "Source_Folder": st.column_config.TextColumn("Origem", width="small"),
                     "cluster_id": st.column_config.TextColumn("RCA Cluster", width="small"),
                     "Raw_Log": st.column_config.TextColumn("Log Real (Texto Completo)", width="large"),
-                    "anomaly_score": st.column_config.NumberColumn("Decision Score", format="%.4f", width="small"),
-                    "Termos_Explicativos": st.column_config.TextColumn(
-                        "Por que foi sinalizado?",
-                        help="Termos TF-IDF de maior peso presentes neste log específico",
-                        width="large"
-                    )
+                    "anomaly_score": st.column_config.NumberColumn("Decision Score", format="%.4f", width="small")
                 },
-                disabled=['Source_Folder', 'cluster_id', 'Raw_Log', 'anomaly_score', 'Termos_Explicativos']
+                disabled=['Source_Folder', 'cluster_id', 'Raw_Log', 'anomaly_score'] 
             )
             
             acertos = df_editado['Triage (True Positive)'].sum()

@@ -103,12 +103,6 @@ def process_log_anomalies(df_original, X_tfidf, y_true=None, model=None, best_th
     
     if len(df_result) != X_tfidf.shape[0]:
         raise ValueError(f"Dimensões incompatíveis: Logs ({len(df_result)}) vs TF-IDF ({X_tfidf.shape[0]})")
-
-    # Guarda a posição posicional original (0-based) ANTES de qualquer reordenação.
-    # É isso que permite, depois do sort por anomaly_score no final desta função,
-    # mapear cada linha de volta para a linha correspondente em X_tfidf/tfidf_test
-    # (por exemplo, para explicabilidade por termos ou para o DBSCAN em main_v4.py).
-    df_result['_row_pos'] = np.arange(len(df_result))
     
     best_params_out = None
     
