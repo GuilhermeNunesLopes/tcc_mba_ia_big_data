@@ -127,3 +127,5 @@ logpai
 docker/meus_logs
 *.metadata
 minikube/k8s-chaos/logs
+
+_hdfs_chunks_tmp

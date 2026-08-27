@@ -30,7 +30,10 @@ import modules.parse_system as parse_system
 import modules.anomaly_detector as anomaly_detector
 import modules.run_output as run_output
 
-CAMINHO_BGL = os.path.join("logpai", "BGL", "BGL.log")
+#CAMINHO_BGL = os.path.join("logpai", "BGL", "BGL.log")
+CAMINHO_BGL = os.path.join("logpai", "BGL", "BGL200k.log")
+#CAMINHO_BGL = os.path.join("logpai", "BGL", "BGL500k.log")
+#CAMINHO_BGL = os.path.join("logpai", "BGL", "BGL900k.log")
 SVD_COMPONENTS = [15, 30, 50]
 
 # BGL.log é o dataset bruto completo (~4,7 milhões de linhas) — nos folds
