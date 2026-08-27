@@ -1,0 +1,22 @@
+{
+    "SVD_15": {
+        "iForest_F1_Medio": 0.004308744300468697,
+        "SVM_F1_Medio": 0.0037409564783241695
+    },
+    "SVD_30": {
+        "iForest_F1_Medio": 0.0009956573785909427,
+        "SVM_F1_Medio": 0.002518851759061016
+    },
+    "SVD_50": {
+        "iForest_F1_Medio": 0.00045131769243860284,
+        "SVM_F1_Medio": 0.10095893266846248
+    },
+    "resumo_parse_drain3": {
+        "arquivo": "C:\\Users\\GNL-PC\\AppData\\Local\\Temp\\tmpkozv1oeq.log",
+        "fonte": "BGL_Eval",
+        "linhas_arquivo_bruto": 4713493,
+        "linhas_processadas": 4713493,
+        "templates_unicos": 2277,
+        "reducao_pct": 99.95
+    }
+}

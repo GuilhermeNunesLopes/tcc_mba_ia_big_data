@@ -1,0 +1,26 @@
+{
+  "Total_Incidentes": 5,
+  "MTTD_Segundos": 521201303.133,
+  "MTTI_Segundos": 0.0,
+  "F1_Score": 0.0035,
+  "PR_AUC": 0.1161,
+  "Precision": 0.0094,
+  "Recall": 0.0021,
+  "Metricas_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "PR_AUC": 0.11608621833159155,
+      "Precision": 0.009433962264150943,
+      "Recall": 0.00211864406779661,
+      "F1_Score": 0.0034602076124567475
+    }
+  ],
+  "Silhouette_Score": 0.6197,
+  "Timestamp_Lote": "2026-08-25 12:31:57",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_filtrados",
+    "logs_appficticio",
+    "logs_appficticio"
+  ]
+}

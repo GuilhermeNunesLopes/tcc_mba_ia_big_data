@@ -1,0 +1,8 @@
+{
+  "arquivo": "/tmp/run_repo/experimento/test2/HDFS_42k.log",
+  "fonte": "HDFS_Completo",
+  "linhas_arquivo_bruto": 42203,
+  "linhas_processadas": 42203,
+  "templates_unicos": 14,
+  "reducao_pct": 99.97
+}

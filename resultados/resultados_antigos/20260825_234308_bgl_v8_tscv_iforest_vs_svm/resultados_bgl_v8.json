@@ -1,0 +1,22 @@
+{
+    "SVD_15": {
+        "iForest_F1_Medio": 0.026796914417934192,
+        "SVM_F1_Medio": 0.027670565520129576
+    },
+    "SVD_30": {
+        "iForest_F1_Medio": 0.005765753158736712,
+        "SVM_F1_Medio": 0.03295143432524921
+    },
+    "SVD_50": {
+        "iForest_F1_Medio": 0.007525242432909152,
+        "SVM_F1_Medio": 0.044441018091683604
+    },
+    "resumo_parse_drain3": {
+        "arquivo": "/tmp/tmpbnr9r60f.log",
+        "fonte": "BGL_Eval",
+        "linhas_arquivo_bruto": 200000,
+        "linhas_processadas": 200000,
+        "templates_unicos": 130,
+        "reducao_pct": 99.94
+    }
+}

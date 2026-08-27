@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import json
 import pandas as pd
 import numpy as np
 import re
@@ -23,18 +24,20 @@ from modules.anomaly_detector import process_log_anomalies
 from modules.preprocessor import apply_truncated_svd
 from modules.parse_system import automatic_drain_parse
 import modules.visualizer as visualizer
+import modules.run_output as run_output
 
 def executar_experimento_completo_literatura():
     print("="*60)
     print("🚀 INICIANDO EXPERIMENTO COMPLETO - LITERATURA (100% DOS DADOS HDFS)")
     print("="*60)
     
-    log_path = 'HDFS_42k.log'
-    #log_path = 'HDFS_23k.log'
+    log_path = 'experimento/test2/HDFS_42k.log'
+    #log_path = 'experimento/test1/HDFS_23k.log'
     #log_path = 'HDFS.log'
-    label_path = 'anomaly_label.csv'
-    output_dir = 'resultados'
-    os.makedirs(output_dir, exist_ok=True)
+    label_path = 'experimento/anomaly_label.csv'
+    # Pasta nova por execução (data/hora no nome) — evita que uma rodada
+    # sobrescreva a evidência da anterior, permitindo comparar ao longo do tempo.
+    output_dir = run_output.criar_pasta_execucao("literatura_v2")
     start_time = time.time()
 
     if not os.path.exists(log_path) or not os.path.exists(label_path):
@@ -46,8 +49,10 @@ def executar_experimento_completo_literatura():
     # ---------------------------------------------------------
     print(f"\n[{time.strftime('%H:%M:%S')}] [1/4] Extraindo templates e agrupando blocos em lotes...")
     
-    batch_log = automatic_drain_parse(log_path, nome_fonte="HDFS_Completo", tamanho_lote=100000)
-    
+    resumo_parse = {}
+    batch_log = automatic_drain_parse(log_path, nome_fonte="HDFS_Completo", tamanho_lote=100000,
+                                       resumo_saida=resumo_parse)
+
     lista_frequencias_lotes = []
 
     # O "for" volta para garantir que a RAM não estoure
@@ -65,7 +70,16 @@ def executar_experimento_completo_literatura():
         lista_frequencias_lotes.append(freq_lote)
         print(f"   -> Lote {i+1} agregado e texto descartado da RAM.")
 
-    # 4. Fora do loop: Junta apenas as matrizes numéricas e soma os blocos que 
+    # Salva o resumo do parse (linhas brutas -> templates únicos, ver
+    # modules/parse_system.py) junto dos resultados desta execução, em vez de
+    # só imprimir no console e perder ao fechar o terminal.
+    if resumo_parse:
+        caminho_resumo_parse = os.path.join(output_dir, "resumo_parse_drain3.json")
+        with open(caminho_resumo_parse, "w", encoding="utf-8") as f:
+            json.dump(resumo_parse, f, indent=2, ensure_ascii=False)
+        print(f"   -> Resumo do parse salvo em: {caminho_resumo_parse}")
+
+    # 4. Fora do loop: Junta apenas as matrizes numéricas e soma os blocos que
     # eventualmente começaram em um lote e terminaram em outro.
     print(f"\n[{time.strftime('%H:%M:%S')}] Consolidando frequências globais...")
     df_frequencias_totais = pd.concat(lista_frequencias_lotes, ignore_index=True)
@@ -113,38 +127,42 @@ def executar_experimento_completo_literatura():
         algorithm="iforest"
     )
 
-    # ---------------------------------------------------------
-    # 5. CÁLCULO DAS MÉTRICAS ACADÊMICAS E OTIMIZAÇÃO DE THRESHOLD
+        # ---------------------------------------------------------
+    # 5. MÉTRICAS ACADÊMICAS (sem reotimizar o threshold aqui)
     # ---------------------------------------------------------
     print("\n" + "="*50)
     print("📊 RESULTADOS ACADÊMICOS DO EXPERIMENTO (100% BASE)")
     print("="*50)
-    
-    # 1. Extrair a pontuação de anomalia contínua do Isolation Forest
-    # (Valores maiores significam que o log é mais anômalo)
+
+    # 1. Score contínuo — usado só para a curva PR-AUC (métrica de ranking,
+    #    não depende de um corte escolhido, então calculá-la sobre o dataset
+    #    todo não é vazamento)
     scores_decision = -modelo_treinado.decision_function(X_reduzido)
-    
-    # 2. Calcular a curva Precision-Recall
+
+    # 2. Curva Precision-Recall e PR-AUC
     precisions_curve, recalls_curve, thresholds_curve = precision_recall_curve(y_true, scores_decision)
     pr_auc = auc(recalls_curve, precisions_curve)
-    
-    # 3. Encontrar o threshold (corte) que maximiza o F1-Score matematicamente
-    # Adicionamos 1e-10 para evitar avisos de divisão por zero
-    f1_scores = 2 * (precisions_curve * recalls_curve) / (precisions_curve + recalls_curve + 1e-10)
-    best_idx = np.argmax(f1_scores)
-    
-    # Prevenção caso o melhor índice seja o último ponto da curva
-    best_threshold_local = thresholds_curve[best_idx] if best_idx < len(thresholds_curve) else thresholds_curve[-1]
-    
-    # 4. Refazer a classificação binária aplicando o nosso corte otimizado
-    df_resultado['pred_is_anomaly'] = (scores_decision >= best_threshold_local).astype(int)
-    
-    # 5. Recalcular as métricas finais com o novo corte
-    prec = precision_score(y_true, df_resultado['pred_is_anomaly'], zero_division=0)
-    rec = recall_score(y_true, df_resultado['pred_is_anomaly'], zero_division=0)
-    f1 = f1_score(y_true, df_resultado['pred_is_anomaly'], zero_division=0)
 
-    print(f"Limiar (Threshold) Otimizado: {best_threshold_local:.4f}")
+    # 3. Classificação binária: NÃO recalculamos o threshold aqui.
+    #    df_resultado['pred_is_anomaly'] já veio de process_log_anomalies,
+    #    aplicando o threshold calibrado no split interno de validação
+    #    (dentro de optimize_isolation_forest). Recalcular o corte usando
+    #    y_true diretamente aqui seria escolher o threshold olhando a
+    #    resposta certa do "teste" — vazamento de dados.
+
+    # 4. Métricas finais com o corte já calibrado sem vazamento
+    #    IMPORTANTE: process_log_anomalies devolve df_resultado já reordenado
+    #    por anomaly_score (sort_values no fim da função) — comparar essa
+    #    coluna 'pred_is_anomaly' (na ordem nova) contra y_true (que continua
+    #    na ordem original de df_final) compara cada linha com o rótulo de
+    #    OUTRA linha. Usamos df_resultado['y_true_label'], que foi atribuída
+    #    ANTES do sort_values (portanto se moveu junto com cada linha) e por
+    #    isso fica corretamente alinhada com 'pred_is_anomaly'.
+    prec = precision_score(df_resultado['y_true_label'], df_resultado['pred_is_anomaly'], zero_division=0)
+    rec = recall_score(df_resultado['y_true_label'], df_resultado['pred_is_anomaly'], zero_division=0)
+    f1 = f1_score(df_resultado['y_true_label'], df_resultado['pred_is_anomaly'], zero_division=0)
+
+    print(f"Limiar (Threshold) calibrado (validação interna): {threshold:.4f}")
     print(f"Precision: {prec:.4f}")
     print(f"Recall:    {rec:.4f}")
     print(f"F1-Score:  {f1:.4f}")
@@ -163,12 +181,32 @@ def executar_experimento_completo_literatura():
     df_resultado['Template'] = df_resultado.apply(criar_pseudo_template, axis=1)
 
     fig_dist = visualizer.plot_anomaly_distribution_plotly(df_resultado)
-    fig_dist.write_html("resultados/grafico_distribuicao_completo.html")
-    
-    fig_timeline = visualizer.plot_anomaly_timeline_plotly(df_resultado)
-    fig_timeline.write_html("resultados/grafico_timeline_completo.html")
+    fig_dist.write_html(os.path.join(output_dir, "grafico_distribuicao_completo_literaturav2.html"))
 
-    print(f"[{time.strftime('%H:%M:%S')}] ✅ Execução finalizada! Gráficos salvos.")
+    fig_timeline = visualizer.plot_anomaly_timeline_plotly(df_resultado)
+    fig_timeline.write_html(os.path.join(output_dir, "grafico_timeline_completo_literaturav2.html"))
+
+    # Novos Gráficos: Comparativo e Métricas
+    fig_comparativo = visualizer.plot_comparativo_antes_depois(df_resultado)
+    fig_comparativo.write_html(os.path.join(output_dir, "grafico_comparativo_completo_literatura.html"))
+
+    # Passando prec, rec e f1 (nomes usados neste script)
+    fig_metricas = visualizer.plot_metricas_destaque(prec, rec, f1)
+    fig_metricas.write_html(os.path.join(output_dir, "grafico_metricas_completo_literatura.html"))
+
+    # Curva Precision-Recall + sensibilidade ao threshold: gerada aqui, pelo
+    # próprio script, a partir de scores_decision/y_true/threshold já
+    # calculados acima (passo 5) — não é um cálculo feito à parte, é a
+    # mesma evidência usada para justificar o PR-AUC impresso no console.
+    visualizer.plot_pr_curve_threshold(
+        y_true=y_true,
+        scores=scores_decision,
+        threshold_usado=threshold,
+        titulo="Literatura v2 — HDFS 100% da amostra rotulada (Drain3 + TF-IDF + SVD + Isolation Forest)",
+        caminho_saida=os.path.join(output_dir, "pr_curve_literatura_v2.png"),
+    )
+
+    print(f"[{time.strftime('%H:%M:%S')}] ✅ Execução finalizada! Gráficos salvos em: {output_dir}")
     print(f"Tempo total: {time.time() - start_time:.2f}s")
 
 if __name__ == "__main__":

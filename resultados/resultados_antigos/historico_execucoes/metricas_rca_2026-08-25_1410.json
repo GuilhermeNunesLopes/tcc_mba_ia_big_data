@@ -1,0 +1,10 @@
+{
+  "Total_Incidentes": 1,
+  "MTTD_Segundos": 0.0,
+  "MTTI_Segundos": 0.0,
+  "Timestamp_Lote": "2026-08-25 14:10:12",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_appficticio"
+  ]
+}

@@ -14,7 +14,7 @@ set -euo pipefail
 # ─── Configurações ────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-LOGS_DIR="$PROJECT_DIR/logs"
+LOGS_DIR="$PROJECT_DIR/logs_appficticio"
 CHAOS_DIR="$PROJECT_DIR/chaos"
 NAMESPACE="default"
 INTERVAL="${1:-120}"   # segundos entre experimentos (padrão: 2 minutos)
@@ -24,8 +24,12 @@ declare -A CHAOS_RESOURCES=(
   ["01-pod-kill.yaml"]="podchaos/pod-kill-demo"
   ["02-network-delay.yaml"]="networkchaos/network-delay-demo"
   ["03-cpu-stress.yaml"]="stresschaos/cpu-stress-demo"
+  ["04-pod-kill-chaoslog.yaml"]="podchaos/pod-kill-chaoslog"
+  ["05-network-delay-chaoslog.yaml"]="networkchaos/network-delay-chaoslog"
+  ["06-cpu-stress-chaoslog.yaml"]="stresschaos/cpu-stress-chaoslog"
 )
-CHAOS_ORDER=("01-pod-kill.yaml" "02-network-delay.yaml" "03-cpu-stress.yaml")
+CHAOS_ORDER=("01-pod-kill.yaml" "02-network-delay.yaml" "03-cpu-stress.yaml" \
+             "04-pod-kill-chaoslog.yaml" "05-network-delay-chaoslog.yaml" "06-cpu-stress-chaoslog.yaml")
 
 # ─── Funções utilitárias ───────────────────────────────────────────────────────
 log() {
@@ -42,7 +46,7 @@ start_log_collectors() {
   log "📁 Pasta de logs: $LOGS_DIR"
 
   # Inicia um coletor em background para cada pod atual
-  for POD in $(kubectl get pods -n "$NAMESPACE" -l app=demo-app -o jsonpath='{.items[*].metadata.name}'); do
+  for POD in $(kubectl get pods -n "$NAMESPACE" -l 'app in (demo-app,chaos-log-app)' -o jsonpath='{.items[*].metadata.name}'); do
     local LOGFILE="$LOGS_DIR/${POD}.log"
     if ! pgrep -f "kubectl logs.*$POD" > /dev/null 2>&1; then
       log "📝 Coletando logs do pod: $POD → $LOGFILE"
@@ -99,7 +103,7 @@ run_experiment() {
     sleep 10
     ELAPSED=$((ELAPSED + 10))
     local SNAPSHOT_FILE="$LOGS_DIR/pods-snapshot-$(date '+%Y%m%d_%H%M%S').log"
-    kubectl get pods -n "$NAMESPACE" -l app=demo-app \
+    kubectl get pods -n "$NAMESPACE" -l 'app in (demo-app,chaos-log-app)' \
       --no-headers \
       -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[0].ready,RESTARTS:.status.containerStatuses[0].restartCount' \
       >> "$SNAPSHOT_FILE" 2>&1 || true
@@ -119,7 +123,7 @@ run_experiment() {
 # ─── Salva estado final dos pods ──────────────────────────────────────────────
 save_final_pod_state() {
   local STATE_FILE="$LOGS_DIR/pod-state-$(date '+%Y%m%d_%H%M%S').log"
-  kubectl get pods -n "$NAMESPACE" -l app=demo-app -o wide >> "$STATE_FILE" 2>&1 || true
+  kubectl get pods -n "$NAMESPACE" -l 'app in (demo-app,chaos-log-app)' -o wide >> "$STATE_FILE" 2>&1 || true
   log "💾 Estado dos pods salvo em: $(basename "$STATE_FILE")"
 }
 
@@ -140,7 +144,7 @@ trap cleanup_on_exit SIGINT SIGTERM
 main() {
   separator
   log "🚀 chaos-runner iniciado"
-  log "   Intervalo entre experimentos: ${INTERVAL}s"
+  log "   Intervalo entre experimentos: ~${INTERVAL}s (aleatório, 50%-150%)"
   log "   Namespace: $NAMESPACE"
   log "   Pasta de logs: $LOGS_DIR"
   separator
@@ -151,23 +155,26 @@ main() {
   # Inicia coletores de log
   start_log_collectors
 
-  local ROUND=0
+  local CONTADOR=0
   while true; do
-    ROUND=$((ROUND + 1))
-    log "🔄 === RODADA $ROUND ==="
+    CONTADOR=$((CONTADOR + 1))
 
-    for FILE in "${CHAOS_ORDER[@]}"; do
-      # Intervalo pré-experimento com coleta de logs
-      log "⏳ Aguardando ${INTERVAL}s antes do próximo experimento..."
-      sleep "$INTERVAL"
+    # Intervalo aleatório (50%-150% do INTERVAL configurado) em vez de fixo —
+    # evita que o motor de detecção aprenda a periodicidade do caos como padrão.
+    local TEMPO_ESPERA
+    TEMPO_ESPERA=$(shuf -i $((INTERVAL / 2))-$((INTERVAL * 3 / 2)) -n 1)
+    log "⏳ Aguardando ${TEMPO_ESPERA}s antes do próximo experimento (aleatório)..."
+    sleep "$TEMPO_ESPERA"
 
-      # Garante que os coletores estão rodando (pods podem ter mudado)
-      refresh_log_collectors
+    # Garante que os coletores estão rodando (pods podem ter mudado)
+    refresh_log_collectors
 
-      run_experiment "$FILE"
-    done
+    # Experimento sorteado — não mais em ordem fixa 01→02→03
+    local FILE
+    FILE=$(printf '%s\n' "${CHAOS_ORDER[@]}" | shuf -n 1)
 
-    log "✅ Rodada $ROUND completa. Reiniciando ciclo..."
+    log "🎲 === EXPERIMENTO #$CONTADOR (sorteado: $FILE) ==="
+    run_experiment "$FILE"
   done
 }
 

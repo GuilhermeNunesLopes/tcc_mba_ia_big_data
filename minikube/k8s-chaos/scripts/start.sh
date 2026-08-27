@@ -18,7 +18,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-LOGS_DIR="$PROJECT_DIR/logs"
+LOGS_DIR="$PROJECT_DIR/logs_appficticio"
 
 # ── Flags ─────────────────────────────────────────────────────────────────────
 INTERVAL=120

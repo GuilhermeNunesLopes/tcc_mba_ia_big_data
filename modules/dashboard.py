@@ -9,6 +9,7 @@ import numpy as np
 
 # Importando o módulo de visualização
 import visualizer as visualizer
+from config_pastas import PASTAS_DISPONIVEIS
 
 # Configuração de página com layout fluido real
 st.set_page_config(
@@ -17,7 +18,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-PASTAS_DISPONIVEIS = ["logs_filtrados", "docker/meus_logs", "minikube/k8s-chaos/logs","experimento/test1","experimento/test2"]
 
 # MUDANÇA: Exibe spinner ao carregar e indexar os Parquets
 @st.cache_data(show_spinner="📥 Indexando dados de telemetria em memória...")
@@ -53,6 +53,52 @@ def format_duration(seconds):
         horas = int(seconds // 3600)
         minutos = int((seconds % 3600) // 60)
         return f"{horas}h {minutos}m"
+
+def formatar_termos_explicativos(texto_bruto):
+    """
+    modules/explainability.py devolve algo como
+    "ce (0.59), interrupts (0.51), suppressing (0.51), ddr (0.34), info (0.08)"
+    — termo + peso TF-IDF bruto. Isso é útil para depuração, mas confuso
+    numa tela de triagem: o peso é um número relativo ao vocabulário do
+    treino, sem escala intuitiva (o que é "0.59"? de 0 a quê?), e o
+    parêntese quebra a leitura em voz alta do log. A ordem já indica a
+    relevância (do mais para o menos raro), então aqui simplificamos para
+    só a lista de termos, em linguagem natural — mantendo o dado bruto
+    intacto em resultado_tcc_*.parquet para quem quiser auditar.
+    """
+    if not isinstance(texto_bruto, str):
+        return texto_bruto
+    if texto_bruto in ("sem termos distintivos",) or texto_bruto.startswith("N/D"):
+        return texto_bruto
+
+    termos = [item.rsplit(" (", 1)[0].strip() for item in texto_bruto.split(", ") if item.strip()]
+    termos = [t for t in termos if t]
+    if not termos:
+        return texto_bruto
+    if len(termos) == 1:
+        return termos[0]
+    return ", ".join(termos[:-1]) + " e " + termos[-1]
+
+
+def formatar_cluster_rca(valor):
+    """
+    'cluster_id' vem direto do DBSCAN (main_v6.py -> pipeline.py), que usa
+    -1 como sentinela de RUÍDO: um log anômalo que não ficou próximo o
+    bastante de nenhum outro para formar um grupo. Sem tradução, o
+    operador via só um float cru na tela (ex.: "-1.0", "0.0") sem saber
+    que -1 não é "cluster número menos um" — é "não achei nenhum padrão
+    aqui". Aqui isso vira texto: "Isolado (sem grupo)" para o ruído, e
+    "Grupo RCA #N" para clusters reais — dois logs no MESMO "Grupo RCA #N"
+    foram considerados similares o bastante para serem a mesma causa raiz.
+    """
+    if pd.isna(valor):
+        return "Isolado (sem grupo)"
+    try:
+        numero = int(float(valor))
+    except (TypeError, ValueError):
+        return str(valor)
+    return "Isolado (sem grupo)" if numero == -1 else f"Grupo RCA #{numero}"
+
 
 def aplicar_tema_profissional(fig, tipo_grafico="scatter"):
     """
@@ -303,7 +349,7 @@ def main():
         col_f1, col_f2, col_f3, col_f4, col_f5, col_f6, col_f7 = st.columns([2.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
         
         with col_f1:
-            pastas_selecionadas = st.multiselect("Namespaces", options=PASTAS_DISPONIVEIS, default=PASTAS_DISPONIVEIS)
+            pastas_selecionadas = st.multiselect("Datasets", options=PASTAS_DISPONIVEIS, default=PASTAS_DISPONIVEIS)
         with col_f2:
             algoritmo_selecionado = st.selectbox("Modelo", options=["iforest", "ocsvm"], format_func=lambda x: "iForest" if x == "iforest" else "OCSVM")
         with col_f3:
@@ -313,8 +359,25 @@ def main():
         with col_f5:
             horas_selecionadas = st.slider("Timeframe", value=(dtime(0, 0), dtime(23, 59)), format="HH:mm")
         with col_f6:
-            # NOVO: Slider de sensibilidade na 6ª coluna
-            sensibilidade = st.slider("Alerta (%)", min_value=0.1, max_value=10.0, value=3.0, step=0.1)
+            # Antes: só o slider manual "Alerta (%)", digitado pelo operador
+            # e enviado direto como taxa_contaminacao. Agora, por padrão, a
+            # taxa é calculada automaticamente pelo motor (Modified
+            # Z-Score/MAD sobre o score do próprio lote — ver
+            # pipeline.estimar_contaminacao_automatica()); o slider manual
+            # continua disponível como modo avançado/override, desabilitado
+            # enquanto o automático estiver ligado.
+            modo_auto_alerta = st.checkbox(
+                "🤖 Alerta automático", value=True,
+                help="Calcula a taxa de contaminação (sensibilidade do alerta) "
+                     "automaticamente a partir da distribuição de anomaly_score de "
+                     "cada fonte (Modified Z-Score / MAD, Iglewicz & Hoaglin 1993), "
+                     "em vez de um valor fixo digitado manualmente."
+            )
+            sensibilidade = st.slider(
+                "Alerta manual (%)", min_value=0.1, max_value=10.0, value=3.0, step=0.1,
+                disabled=modo_auto_alerta,
+                help="Só é usado quando 'Alerta automático' está desligado."
+            )
         with col_f7:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             submit_button = st.form_submit_button(label='Aplicar Filtros', use_container_width=True)
@@ -323,11 +386,13 @@ def main():
     if submit_button:
         tempo_inicial_parquet = os.path.getmtime(arquivo_dados) if os.path.exists(arquivo_dados) else 0
 
-        # Salva o config.json enviando o valor da sensibilidade convertido para decimal (ex: 3.0% vira 0.03)
+        # Salva o config.json com "auto" (motor calcula sozinho via Modified
+        # Z-Score/MAD) OU o valor manual convertido para decimal (ex: 3.0%
+        # vira 0.03), conforme o checkbox "Alerta automático".
         with open("config.json", "w", encoding='utf-8') as f:
             json.dump({
-                "pastas": pastas_selecionadas, 
-                "taxa_contaminacao": sensibilidade / 100.0,  # <--- Injeta a Sensibilidade aqui
+                "pastas": pastas_selecionadas,
+                "taxa_contaminacao": "auto" if modo_auto_alerta else sensibilidade / 100.0,
                 "algoritmo": algoritmo_selecionado,
                 "reducao": reducao_selecionada
             }, f)
@@ -365,9 +430,24 @@ def main():
     # RESPONSIVE KPI GRID (COM FORMATADOR DE TEMPO)
     # ==========================================
     pr_auc_str = f"{metricas.get('PR_AUC', 0):.1%}" if metricas.get('PR_AUC') else "N/A"
-    
+
     mttd_humano = format_duration(metricas.get('MTTD_Segundos', 0))
     mtti_humano = format_duration(metricas.get('MTTI_Segundos', 0))
+
+    # ---- KPI: TAXA DE CONTAMINAÇÃO (ALERTA) CALCULADA ----
+    # Transparência/auditoria: mostra o valor que o motor REALMENTE usou no
+    # último lote (média entre as fontes), e se veio do cálculo automático
+    # (Modified Z-Score/MAD) ou de um valor manual digitado no dashboard —
+    # ver main_v6.py (bloco "TAXA DE CONTAMINAÇÃO") e
+    # pipeline.estimar_contaminacao_automatica().
+    taxa_contaminacao_calculada = metricas.get('Taxa_Contaminacao_Media_Calculada')
+    metodo_alerta = metricas.get('Metodo_Calculo_Alerta', '')
+    if taxa_contaminacao_calculada is not None:
+        contaminacao_str = f"{taxa_contaminacao_calculada:.2%}"
+        contaminacao_subtitulo = "🤖 auto (MAD)" if metodo_alerta.startswith("auto") else "✍️ manual"
+    else:
+        contaminacao_str = "N/A"
+        contaminacao_subtitulo = ""
 
     html_kpis = f"""
     <div class="kpi-wrapper">
@@ -390,6 +470,11 @@ def main():
         <div class="kpi-card">
             <div class="kpi-title">Logs Ingeridos (Throughput)</div>
             <div class="kpi-value val-neutral">{len(df_final):,}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Taxa de Contaminação (Alerta)</div>
+            <div class="kpi-value val-info">{contaminacao_str}</div>
+            <div class="kpi-title" style="margin-top:2px;">{contaminacao_subtitulo}</div>
         </div>
     </div>
     """
@@ -431,7 +516,46 @@ def main():
             st.plotly_chart(fig_mttd, use_container_width=True, config=plotly_config)
         else:
             st.markdown("<div style='padding:40px; color:#8b949e; text-align:center;'>Aguardando encerramento de incidentes...</div>", unsafe_allow_html=True)
+    # ==========================================
+    # EXPERIMENT METRICS (GROUND TRUTH)
+    # ==========================================
+    st.markdown("""
+    <div style="margin-top: 24px;">
+        <h5 style="border-bottom: 1px solid #30363d; padding-bottom: 8px;">Resultados do Experimento (Ground Truth vs Detecção)</h5>
+    </div>
+    """, unsafe_allow_html=True)
 
+    col_exp1, col_exp2 = st.columns(2)
+    
+    with col_exp1:
+        st.markdown("<h5>Impacto do Algoritmo: Real vs. Detectado</h5>", unsafe_allow_html=True)
+        # Verifica se estamos rodando um arquivo de experimento que possui os labels reais
+        if 'y_true_label' in df_final.columns and not df_final['y_true_label'].dropna().empty:
+            fig_comp = visualizer.plot_comparativo_antes_depois(df_final)
+            st.plotly_chart(fig_comp, use_container_width=True, config=plotly_config)
+        else:
+            st.markdown("<div style='padding:40px; color:#8b949e; text-align:center; border: 1px dashed #30363d; border-radius: 6px;'>Gráfico indisponível: Dados em produção (Sem Ground Truth).</div>", unsafe_allow_html=True)
+            
+    with col_exp2:
+        st.markdown("<h5>Desempenho de Classificação (Precision, Recall, F1)</h5>", unsafe_allow_html=True)
+        if 'y_true_label' in df_final.columns:
+            # Importa as métricas para calcular na hora de gerar a tela
+            from sklearn.metrics import precision_score, recall_score, f1_score
+
+            # Linhas de fontes sem Ground Truth (ex.: logs_appficticio) entram como NaN
+            # após o concat dos lotes — sklearn não aceita NaN em y_true.
+            df_rotulado = df_final.dropna(subset=['y_true_label'])
+            if not df_rotulado.empty:
+                prec = precision_score(df_rotulado['y_true_label'], df_rotulado['pred_is_anomaly'], zero_division=0)
+                rec = recall_score(df_rotulado['y_true_label'], df_rotulado['pred_is_anomaly'], zero_division=0)
+                f1_s = f1_score(df_rotulado['y_true_label'], df_rotulado['pred_is_anomaly'], zero_division=0)
+
+                fig_metrics = visualizer.plot_metricas_destaque(prec, rec, f1_s)
+                st.plotly_chart(fig_metrics, use_container_width=True, config=plotly_config)
+            else:
+                st.markdown("<div style='padding:40px; color:#8b949e; text-align:center; border: 1px dashed #30363d; border-radius: 6px;'>Métricas indisponíveis: nenhuma das fontes selecionadas tem Ground Truth.</div>", unsafe_allow_html=True)
+        else:
+             st.markdown("<div style='padding:40px; color:#8b949e; text-align:center; border: 1px dashed #30363d; border-radius: 6px;'>Métricas indisponíveis: Faltam labels de avaliação.</div>", unsafe_allow_html=True)
     # ==========================================
     # ROOT CAUSE TOPOGRAPHY
     # ==========================================
@@ -520,19 +644,28 @@ def main():
         if top_k_logs.empty:
             st.warning(f"Nenhuma anomalia encontrada contendo o termo '{busca_texto}'.")
         else:
-            top_k_logs['Triage (True Positive)'] = False 
-            
-            # ---- NOVO: GARANTE A COLUNA CLUSTER_ID (DBSCAN) ----
-            if 'cluster_id' not in top_k_logs.columns:
-                top_k_logs['cluster_id'] = "Isolado"
-            else:
-                top_k_logs['cluster_id'] = top_k_logs['cluster_id'].fillna("Isolado").astype(str)
+            top_k_logs['Triage (True Positive)'] = False
 
-            # ---- NOVO: GARANTE A COLUNA DE EXPLICABILIDADE (fallback para parquets antigos) ----
+            # ---- GARANTE A COLUNA CLUSTER_ID (DBSCAN) E TRADUZ PARA TEXTO CLARO ----
+            # Antes: -1/0/1... apareciam crus na tela ("-1.0"), sem explicar
+            # que -1 é o sentinela de "ruído" do DBSCAN (log isolado, sem
+            # grupo) — ver formatar_cluster_rca() para o porquê completo.
+            if 'cluster_id' not in top_k_logs.columns:
+                top_k_logs['cluster_id'] = "Isolado (sem grupo)"
+            else:
+                top_k_logs['cluster_id'] = top_k_logs['cluster_id'].apply(formatar_cluster_rca)
+
+            # ---- GARANTE E SIMPLIFICA A COLUNA DE EXPLICABILIDADE ----
+            # Antes: "ce (0.59), interrupts (0.51), ..." — peso TF-IDF cru,
+            # sem escala intuitiva. Ver formatar_termos_explicativos().
             if 'Termos_Explicativos' not in top_k_logs.columns:
                 top_k_logs['Termos_Explicativos'] = "N/D (rode com a versão atual do pipeline)"
             else:
-                top_k_logs['Termos_Explicativos'] = top_k_logs['Termos_Explicativos'].fillna("sem termos distintivos")
+                top_k_logs['Termos_Explicativos'] = (
+                    top_k_logs['Termos_Explicativos']
+                    .fillna("sem termos distintivos")
+                    .apply(formatar_termos_explicativos)
+                )
 
             # Exibe o data editor
             df_editado = st.data_editor(
@@ -546,12 +679,27 @@ def main():
                         default=False
                     ),
                     "Source_Folder": st.column_config.TextColumn("Origem", width="small"),
-                    "cluster_id": st.column_config.TextColumn("RCA Cluster", width="small"),
+                    "cluster_id": st.column_config.TextColumn(
+                        "Grupo de Causa Raiz (RCA)",
+                        width="medium",
+                        help="Agrupamento por similaridade (DBSCAN). Logs no MESMO "
+                             "'Grupo RCA #N' foram considerados parte do mesmo incidente/causa "
+                             "raiz. 'Isolado (sem grupo)' significa que este log anômalo não se "
+                             "pareceu o bastante com nenhum outro do lote para formar um grupo."
+                    ),
                     "Raw_Log": st.column_config.TextColumn("Log Real (Texto Completo)", width="large"),
-                    "anomaly_score": st.column_config.NumberColumn("Decision Score", format="%.4f", width="small"),
+                    "anomaly_score": st.column_config.NumberColumn(
+                        "Decision Score",
+                        format="%.4f",
+                        width="small",
+                        help="Score bruto do modelo (Isolation Forest/OCSVM): quanto mais "
+                             "negativo, mais anômalo o modelo considera este log."
+                    ),
                     "Termos_Explicativos": st.column_config.TextColumn(
                         "Por que foi sinalizado?",
-                        help="Termos TF-IDF de maior peso presentes neste log específico",
+                        help="Termos mais raros/incomuns presentes neste log específico, em "
+                             "ordem de relevância — não é uma explicação literal da matemática "
+                             "do modelo, é um indício textual para agilizar a triagem humana.",
                         width="large"
                     )
                 },

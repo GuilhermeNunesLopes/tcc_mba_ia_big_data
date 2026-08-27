@@ -1,0 +1,13 @@
+{
+  "Total_Incidentes": 10,
+  "MTTD_Segundos": 281424029.3875,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.8048,
+  "Timestamp_Lote": "2026-08-25 12:01:41",
+  "Tecnica_Reducao": "SVD",
+  "Fontes_Processadas": [
+    "logs",
+    "test1",
+    "test2"
+  ]
+}

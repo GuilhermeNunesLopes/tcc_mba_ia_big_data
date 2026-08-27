@@ -1,0 +1,45 @@
+{
+  "Total_Incidentes": 5,
+  "MTTD_Segundos": 651589159.4006,
+  "MTTI_Segundos": 0.0,
+  "F1_Score": 0.002,
+  "PR_AUC": 0.1161,
+  "Precision": 0.0019,
+  "Recall": 0.0021,
+  "Metricas_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "PR_AUC": 0.11608621833159155,
+      "Precision": 0.0018975332068311196,
+      "Recall": 0.00211864406779661,
+      "F1_Score": 0.002002002002002002
+    }
+  ],
+  "Silhouette_Score": 0.2341,
+  "Taxa_Contaminacao_Media_Calculada": 0.15,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "Taxa_Contaminacao_Usada": 0.15,
+      "Calculo_Automatico": {
+        "metodo": "modified_z_score_mad",
+        "z_threshold": 3.5,
+        "mediana_score": -0.32493136628698516,
+        "mad_score": 0.011791569835981897,
+        "fracao_atipicos_bruta": 0.1703129527673138,
+        "taxa_final_apos_limites": 0.15,
+        "limites": [
+          0.005,
+          0.15
+        ],
+        "n_amostras_treino": 13804
+      }
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, Iglewicz & Hoaglin 1993)",
+  "Timestamp_Lote": "2026-08-25 17:09:28",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_filtrados"
+  ]
+}

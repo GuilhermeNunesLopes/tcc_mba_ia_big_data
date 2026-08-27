@@ -23,7 +23,7 @@ services:
     user: root
     volumes:
       - ./fluent.conf:/fluentd/etc/fluent.conf
-      - ./meus_logs:/fluentd/log
+      - ./logs_appficticio:/fluentd/log
     ports:
       - "24224:24224"       # Forward
       - "5140:5140/udp"     # Syslog (Logspout)
@@ -97,21 +97,21 @@ services:
     depends_on:
       - redis
       - fluentd
+    restart: always
 
   # --- GERADOR DE CAOS ALEATÓRIO CENTRALIZADO ---
-  #caos-aleatorio:
-  #  image: docker:cli
-  #  container_name: caos-aleatorio
-  #  volumes:
-  #    - /var/run/docker.sock:/var/run/docker.sock
-  #    - ./chaos.sh:/chaos.sh:ro
-  #  command: sh /chaos.sh
-  #  depends_on:
-  #    - api
-  #    - redis
-  #    - worker
-  #  restart: always
-#
+  caos-aleatorio:
+    image: docker:cli
+    container_name: caos-aleatorio
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./chaos.sh:/chaos.sh:ro
+    command: sh /chaos.sh
+    depends_on:
+      - api
+      - redis
+      - worker
+    restart: always
 networks:
   rede-caos:
     name: rede-caos 

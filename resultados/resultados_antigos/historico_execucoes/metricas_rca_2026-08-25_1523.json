@@ -1,0 +1,50 @@
+{
+  "Total_Incidentes": 2,
+  "MTTD_Segundos": 884.427,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.8808,
+  "Taxa_Contaminacao_Media_Calculada": 0.030625,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.05625,
+      "Calculo_Automatico": {
+        "metodo": "modified_z_score_mad",
+        "z_threshold": 3.5,
+        "mediana_score": -0.38447014783985045,
+        "mad_score": 0.01822509475274464,
+        "fracao_atipicos_bruta": 0.05625,
+        "taxa_final_apos_limites": 0.05625,
+        "limites": [
+          0.005,
+          0.15
+        ],
+        "n_amostras_treino": 960
+      }
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.005,
+      "Calculo_Automatico": {
+        "metodo": "modified_z_score_mad",
+        "z_threshold": 3.5,
+        "mediana_score": -0.4205078689340832,
+        "mad_score": 0.06257306550435701,
+        "fracao_atipicos_bruta": 0.00011916110581506196,
+        "taxa_final_apos_limites": 0.005,
+        "limites": [
+          0.005,
+          0.15
+        ],
+        "n_amostras_treino": 16784
+      }
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, Iglewicz & Hoaglin 1993)",
+  "Timestamp_Lote": "2026-08-25 15:23:48",
+  "Tecnica_Reducao": "SVD",
+  "Fontes_Processadas": [
+    "logs_appficticio",
+    "logs_appficticio"
+  ]
+}

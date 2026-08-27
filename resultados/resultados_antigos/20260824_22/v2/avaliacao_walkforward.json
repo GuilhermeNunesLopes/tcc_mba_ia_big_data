@@ -1,0 +1,37 @@
+{
+  "splits": [
+    {
+      "split": 1,
+      "n_treino": 4024,
+      "n_teste": 2412
+    },
+    {
+      "split": 2,
+      "n_treino": 6436,
+      "n_teste": 2412
+    },
+    {
+      "split": 3,
+      "n_treino": 8848,
+      "n_teste": 2412
+    },
+    {
+      "split": 4,
+      "n_treino": 11260,
+      "n_teste": 2412
+    },
+    {
+      "split": 5,
+      "n_treino": 13672,
+      "n_teste": 2412
+    }
+  ],
+  "resumo": {},
+  "config": {
+    "algoritmo": "iforest",
+    "reducao": "pca",
+    "n_splits": 5,
+    "test_size": 0.15,
+    "taxa_contaminacao": 0.064
+  }
+}

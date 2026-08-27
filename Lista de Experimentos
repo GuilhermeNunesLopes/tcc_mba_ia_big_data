@@ -1,0 +1,20 @@
+1 - python avaliacao_walkforward.py --n-splits 5 --test-size 0.15 --algoritmo iforest --reducao pca
+2 - python avaliacao_walkforward.py --n-splits 5 --test-size 0.15 --algoritmo iforest --reducao svd
+3 - python avaliacao_walkforward.py --n-splits 4 --test-size 0.2 --algoritmo iforest --reducao pca
+4 - python avaliacao_walkforward.py --n-splits 4 --test-size 0.2 --algoritmo iforest --reducao svd
+5 - python avaliacao_walkforward.py --n-splits 5 --test-size 0.15 --algoritmo ocsvm --reducao pca
+6 - python.exe .\experimento\experimento_pipeline_graficos.py (usando Iforest)
+7 - python.exe .\experimento\experimento_pipeline_graficos.py (usando ocsvm) - precisa limitar o numero de dados pois se não ele pode ficar rodando por horas.
+8 - python.exe .\experimento\experimento_pipeline_iforest.py (script completo com hdfs balanceado sem redução de dimensionalidade)
+9 - python.exe .\experimento\experimento_pipeline_iforest.py (script completo com hdfs balanceado sem redução de dimensionalidade e modificando o anomaly percentil de 50 para 60%)
+10 - python.exe .\experimento\experimento_pipeline_literatura_v2.py
+11 - python.exe .\experimento\experimento_pipeline_svm.py (usando 20k de amostra)
+12 - python.exe .\experimento\experimento_pipeline_svm.py (usando 40k de amostra)
+13 - python.exe .\experimento\experimento_pipeline_svm.py (usando 33k de amostra)
+14 - python .\experimento\BGL\avaliacao_bgl_v8.py 
+15 - python .\experimento\BGL\avaliacao_bgl_v9_polaris.py
+16 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo iforest --reducao pca --n-splits 20 --test-size 0.04
+17 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo iforest --reducao svd --n-splits 20 --test-size 0.04
+18 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo ocsvm  --reducao pca --n-splits 20 --test-size 0.04
+19 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo ocsvm  --reducao svd --n-splits 20 --test-size 0.04
+

@@ -13,6 +13,7 @@ import modules.parse_system as parse_system
 import modules.preprocessor as preprocessor
 import modules.anomaly_detector as anomaly_detector
 from modules.mttd_mtti import RCA_MetricsTracker
+from modules.config_pastas import PASTAS_DISPONIVEIS
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import DBSCAN
 from sklearn.metrics import silhouette_score, precision_recall_curve, auc, precision_score, recall_score, f1_score
@@ -32,12 +33,7 @@ def ler_configuracoes():
             config = json.load(f)
             return config.get("pastas", []), config.get("taxa_contaminacao", "auto"), config.get("algoritmo", "iforest")
     except (FileNotFoundError, json.JSONDecodeError):
-        pastas_padrao = [
-            "experimento/test2",
-            "docker/meus_logs",
-            "minikube/k8s-chaos/logs",
-            "experimento/test1"
-        ] 
+        pastas_padrao = PASTAS_DISPONIVEIS
         return pastas_padrao, "auto", "iforest"
 
 def processar_logs_em_lote():

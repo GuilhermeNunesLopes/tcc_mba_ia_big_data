@@ -6,11 +6,19 @@ class RCA_MetricsTracker:
         # Dicionário para armazenar os tempos de cada incidente/anomalia
         self.incidents = {}
 
-    def start_injection(self, incident_id):
-        """T0: Momento em que o simulador envia o log anômalo."""
+    def start_injection(self, incident_id, t0=None):
+        """T0: Momento em que o simulador envia o log anômalo.
+
+        Por padrão usa o wall-clock (comportamento antigo, para chamadas
+        que ainda tratam o lote inteiro como um único incidente). Quando
+        t0 é passado explicitamente (ex.: timestamp real do log mais
+        antigo de um cluster de anomalia detectado), o MTTD passa a medir
+        o que a literatura define — tempo até detectar o incidente real —
+        em vez da latência de processamento do lote.
+        """
         self.incidents[incident_id] = {
-            't0': time.time(), 
-            't1': None, 
+            't0': t0 if t0 is not None else time.time(),
+            't1': None,
             't2': None
         }
 
@@ -44,3 +52,6 @@ class RCA_MetricsTracker:
             "MTTD_Segundos": round(mttd, 4),
             "MTTI_Segundos": round(mtti, 4)
         }
+    def clear_batch(self):
+     """Limpa os incidentes do lote atual para não gerar vazamento de memória."""
+     self.incidents.clear()

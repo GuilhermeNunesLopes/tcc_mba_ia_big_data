@@ -31,7 +31,14 @@ def read_dir_to_temps(directory):
 # EXTRAÇÃO DE TIMESTAMP
 # ==========================================================================
 ESTRATEGIAS_TIMESTAMP = [
-    (re.compile(r'^-?\s*(\d{10})\s+\d{4}\.\d{2}\.\d{2}\s'), 'epoch_s'),
+    # BGL: linha começa com um token de rótulo (\"-\" = normal, ou um código de
+    # alerta como \"APPREAD\"/\"KERNDTLB\" = anomalia real) antes do epoch. O
+    # padrão antigo só tolerava um \"-\" opcional; qualquer linha anômala (que
+    # começa com o código em vez de \"-\") falhava aqui, caía sem timestamp e
+    # era descartada por preprocessar_logs_brutos (dropna em Timestamp) — ou
+    # seja, TODAS as anomalias reais do BGL eram silenciosamente removidas
+    # antes de chegar a qualquer split de treino/teste.
+    (re.compile(r'^(?:(?:-|\S+)\s+)?(\d{10})\s+\d{4}\.\d{2}\.\d{2}\s'), 'epoch_s'),
     (re.compile(r'^(\d{6}\s\d{6})\s'), '%y%m%d %H%M%S'),
     (re.compile(r'^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)'), 'iso'),
     (re.compile(r'^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})'), 'syslog'),
@@ -85,10 +92,17 @@ def _processar_dataframe_lote(data_lote):
 def automatic_drain_parse(file_path, nome_fonte=None,
                            caminho_ini=CAMINHO_INI_PADRAO,
                            diretorio_estados=DIRETORIO_ESTADOS_PADRAO,
-                           tamanho_lote=100000):
+                           tamanho_lote=100000,
+                           resumo_saida=None):
     """
     Analisa os logs automaticamente usando o algoritmo Drain.
     Transformado em um gerador (yield) para processar arquivos gigantes sem estourar a RAM.
+
+    resumo_saida: dict opcional, passado pelo chamador. Ao final do parse
+    (quando o gerador é totalmente consumido), é preenchido em memória com
+    {"arquivo", "linhas_arquivo_bruto", "linhas_processadas",
+    "templates_unicos", "reducao_pct"} — para o chamador salvar isso junto do
+    resultado da execução (ex.: no JSON de saída de cada script).
     """
     caminho_completo = os.path.abspath(file_path)
 
@@ -110,12 +124,14 @@ def automatic_drain_parse(file_path, nome_fonte=None,
 
     data = []
     linhas_processadas = 0
+    total_linhas_arquivo = 0  # conta TODA linha lida (inclusive vazias), para o resumo antes/depois
 
     with open(file_path, 'r', encoding='utf-8') as f:
         for line in f:
+            total_linhas_arquivo += 1
             line = line.strip()
             if not line:
-                continue 
+                continue
 
             timestamp_bruto, formato_ts, corpo_para_drain = extrair_timestamp_e_corpo(line)
             result = template_miner.add_log_message(corpo_para_drain)
@@ -149,6 +165,32 @@ def automatic_drain_parse(file_path, nome_fonte=None,
         print(f"Último lote processado! Linhas totais: {linhas_processadas}. "
               f"Clusters no lote: {total_clusters}")
         yield df
+
+    # Resumo antes/depois do parse via Drain3: quantas linhas o dataset tinha
+    # vs. quantos padrões (templates) únicos o Drain3 encontrou no total — é
+    # essa redução (muitas linhas → poucos templates) que efetivamente diminui
+    # o vocabulário que o TF-IDF/modelo precisa lidar depois. NOTA: se já existe
+    # um estado persistido (drain3_state_<nome_fonte>.bin) de uma execução
+    # anterior sobre a mesma fonte, o total de templates abaixo reflete TODO o
+    # conhecimento acumulado do Drain3 para essa fonte, não só o deste arquivo.
+    total_templates = len(template_miner.drain.clusters)
+    reducao_pct = (1 - total_templates / total_linhas_arquivo) * 100 if total_linhas_arquivo else 0.0
+    print(f"\n📊 Resumo do parse (Drain3) — fonte '{nome_fonte}':")
+    print(f"   Linhas no arquivo bruto:          {total_linhas_arquivo}")
+    print(f"   Linhas efetivamente processadas:  {linhas_processadas}")
+    print(f"   Templates (padrões) únicos:       {total_templates}")
+    print(f"   Compressão: {total_linhas_arquivo} linhas → {total_templates} padrões únicos "
+          f"({reducao_pct:.2f}% de redução)")
+
+    if resumo_saida is not None:
+        resumo_saida.update({
+            "arquivo": caminho_completo,
+            "fonte": nome_fonte,
+            "linhas_arquivo_bruto": total_linhas_arquivo,
+            "linhas_processadas": linhas_processadas,
+            "templates_unicos": total_templates,
+            "reducao_pct": round(reducao_pct, 2),
+        })
 
 
 if __name__ == "__main__":

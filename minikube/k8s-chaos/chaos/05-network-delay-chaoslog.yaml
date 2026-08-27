@@ -1,0 +1,18 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-delay-chaoslog
+  namespace: default
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - default
+    labelSelectors:
+      app: chaos-log-app
+  delay:
+    latency: "200ms"
+    jitter: "50ms"
+    correlation: "25"
+  duration: "60s"

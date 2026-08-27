@@ -46,7 +46,7 @@ def preparar_experimento_hdfs(
     
     # Aciona a sua função original que já carrega o drain3.ini com as máscaras corretas
     parsed_generator = automatic_drain_parse(log_path, nome_fonte="HDFS_TCC")
-    df_parsed = pd.DataFrame(parsed_generator)
+    df_parsed = pd.DataFrame(parsed_generator, ignore_index=True)
     # O parse_system retorna o dataframe com a coluna 'Raw_Log'. 
     # Vamos extrair o BlockId direto dela usando Regex.
     print("   -> Extraindo BlockIds estruturais das mensagens brutas...")

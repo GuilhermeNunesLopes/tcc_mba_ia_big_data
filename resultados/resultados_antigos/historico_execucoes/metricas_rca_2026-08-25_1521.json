@@ -1,0 +1,31 @@
+{
+  "Total_Incidentes": 1,
+  "MTTD_Segundos": 0.0,
+  "MTTI_Segundos": 0.0,
+  "Taxa_Contaminacao_Media_Calculada": 0.05445,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.05445,
+      "Calculo_Automatico": {
+        "metodo": "modified_z_score_mad",
+        "z_threshold": 3.5,
+        "mediana_score": -0.39034072251544616,
+        "mad_score": 0.023321079400094757,
+        "fracao_atipicos_bruta": 0.05445026178010471,
+        "taxa_final_apos_limites": 0.05445026178010471,
+        "limites": [
+          0.005,
+          0.15
+        ],
+        "n_amostras_treino": 955
+      }
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, Iglewicz & Hoaglin 1993)",
+  "Timestamp_Lote": "2026-08-25 15:21:52",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_appficticio"
+  ]
+}

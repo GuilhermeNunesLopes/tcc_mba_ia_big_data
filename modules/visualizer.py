@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import textwrap
 import streamlit as st
 import pandas as pd
+import numpy as np
 import os
 import json
 
@@ -211,8 +212,8 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
                     
                     # Reduzimos para 5% de similaridade para criar MAIS conexões
                     #if sim > 0.05:
-                    #Aumentando para 10% de similaridade para reduzir a quantidade de linhas e deixar o grafo mais limpo
-                    if sim > 0.10:  
+                    #Aumentando para 20% de similaridade para reduzir a quantidade de linhas e deixar o grafo mais limpo
+                    if sim > 0.20:  
                         # Multiplicador aumentado (de 5 para 8) para deixar as linhas mais gordinhas e visíveis
                         G.add_edge(i, j, weight=sim * 8, title=f"Similaridade: {sim:.0%}")
         except ValueError:
@@ -382,3 +383,207 @@ def plot_mttd_mtti_historico(historico_path="resultados/historico_metricas.json"
     except Exception as e:
         print(f"Erro ao plotar histórico MTTD/MTTI: {e}")
         return None
+
+
+import plotly.graph_objects as go
+
+def plot_comparativo_antes_depois(df_resultado):
+    """
+    Gera um gráfico comparando a quantidade real de anomalias (Ground Truth)
+    com a quantidade detectada pelo algoritmo (Predição).
+    """
+    # Restringe às linhas com rótulo real: fontes sem Ground Truth (ex.:
+    # logs_appficticio) entram como NaN após o concat dos lotes e não devem
+    # contar em nenhuma das duas barras, senão "Detectado" soma fontes que
+    # "Real" não conta e a comparação fica desbalanceada.
+    df_resultado = df_resultado.dropna(subset=['y_true_label'])
+
+    # Contagem Real (Ground Truth)
+    reais_normais = (df_resultado['y_true_label'] == 0).sum()
+    reais_anomalias = (df_resultado['y_true_label'] == 1).sum()
+    
+    # Contagem Predita (Depois da execução do modelo)
+    pred_normais = (df_resultado['pred_is_anomaly'] == 0).sum()
+    pred_anomalias = (df_resultado['pred_is_anomaly'] == 1).sum()
+    
+    fig = go.Figure(data=[
+        go.Bar(name='Real (Ground Truth)', x=['Normais', 'Anomalias'], y=[reais_normais, reais_anomalias], marker_color='#1f77b4'),
+        go.Bar(name='Detectado pelo Modelo', x=['Normais', 'Anomalias'], y=[pred_normais, pred_anomalias], marker_color='#ff4b4b')
+    ])
+    
+    fig.update_layout(
+        title="Impacto do Algoritmo: Volume Real vs. Detectado",
+        barmode='group',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font_color='white',
+        yaxis=dict(title='Quantidade de Logs', showgrid=True, gridcolor='#30363d')
+    )
+    return fig
+
+def plot_metricas_destaque(precision, recall, f1):
+    """
+    Gera um gráfico de barras horizontais bem visível para as métricas matemáticas.
+    """
+    fig = go.Figure(go.Bar(
+        x=[precision, recall, f1],
+        y=['Precision', 'Recall', 'F1-Score'],
+        orientation='h',
+        text=[f"{precision:.4f}", f"{recall:.4f}", f"{f1:.4f}"],
+        textposition='auto',
+        textfont=dict(size=18, family="JetBrains Mono"),
+        marker_color=['#58a6ff', '#d29922', '#238636']
+    ))
+    
+    fig.update_layout(
+        title="Métricas de Desempenho (RCA Pipeline)",
+        xaxis=dict(range=[0, 1.1], title="Pontuação", showgrid=True, gridcolor='#30363d'),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font_color='white',
+        height=350
+    )
+    return fig
+
+def plot_walkforward_metricas_por_split(df_resultados):
+    """
+    Gera um gráfico de linha com F1/Precision/Recall/PR_AUC por split da
+    avaliação walk-forward, com uma linha pontilhada marcando a média de
+    cada métrica entre os splits.
+
+    Espera um DataFrame com uma linha por split e (pelo menos algumas das)
+    colunas 'split', 'F1_Score', 'Precision', 'Recall', 'PR_AUC' — o mesmo
+    formato que avaliacao_walkforward.py já monta para o JSON de saída.
+    """
+    colunas_metricas = [c for c in ['F1_Score', 'Precision', 'Recall', 'PR_AUC'] if c in df_resultados.columns]
+    if df_resultados.empty or not colunas_metricas or 'split' not in df_resultados.columns:
+        return None
+
+    cores = {'F1_Score': '#238636', 'Precision': '#58a6ff', 'Recall': '#d29922', 'PR_AUC': '#f778ba'}
+
+    fig = go.Figure()
+    for metrica in colunas_metricas:
+        if df_resultados[metrica].notna().sum() == 0:
+            continue
+
+        fig.add_trace(go.Scatter(
+            x=df_resultados['split'], y=df_resultados[metrica],
+            mode='lines+markers', name=metrica,
+            line=dict(color=cores.get(metrica, '#8b949e')),
+            marker=dict(size=9)
+        ))
+
+        media = df_resultados[metrica].mean()
+        fig.add_hline(
+            y=media, line_dash="dot", line_color=cores.get(metrica, '#8b949e'), opacity=0.5,
+            annotation_text=f"{metrica} médio: {media:.3f}", annotation_position="top left"
+        )
+
+    fig.update_layout(
+        title="Avaliação Walk-Forward: Métricas por Split",
+        xaxis=dict(title="Split (janela cronológica)", dtick=1, showgrid=True, gridcolor='rgba(128,128,128,0.2)'),
+        yaxis=dict(title="Pontuação", range=[0, 1.05], showgrid=True, gridcolor='rgba(128,128,128,0.2)'),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font_color='white',
+        legend_title_text='Métrica'
+    )
+    return fig
+
+def plot_pr_curve_threshold(y_true, scores, threshold_usado=None,
+                             titulo="Curva Precision-Recall e Sensibilidade ao Threshold",
+                             label_threshold_usado="Threshold usado",
+                             caminho_saida=None):
+    """
+    Evidência visual de duas partes, calculada SOMENTE a partir de arrays que
+    o script chamador já produziu (y_true/scores/threshold reais da própria
+    execução) — esta função não recalcula nada, só desenha:
+
+      (a) Curva Precision-Recall (Recall x Precision), com a área sob a
+          curva (PR-AUC) no título do painel.
+      (b) Precision/Recall/F1 em função do threshold de decisão, com uma
+          linha pontilhada cinza no melhor F1 teoricamente possível (maior
+          F1 percorrendo TODOS os cortes da curva) e, se informado, uma
+          linha vermelha tracejada no threshold efetivamente usado na
+          classificação reportada — para mostrar visualmente se o corte
+          usado está perto ou longe do ponto ótimo.
+
+    Parâmetros
+    ----------
+    y_true : array-like binário (1 = anomalia real, 0 = normal).
+    scores : array-like contínuo, mesma convenção usada no resto do
+        pipeline (quanto MAIOR, mais anômalo — ou seja, -anomaly_score /
+        -decision_function, nunca a coluna anomaly_score crua).
+    threshold_usado : float opcional, no mesmo eixo de `scores`, marcando o
+        corte realmente aplicado na classificação (df_resultado['pred_is_anomaly']).
+    caminho_saida : caminho .png opcional; se informado, salva a figura ali
+        (cria a pasta se preciso) além de retorná-la.
+
+    Retorna a figura matplotlib (fig) para quem quiser plt.show()/ajustar.
+    """
+    import matplotlib
+    matplotlib.use("Agg", force=False)  # execução headless (scripts de linha de comando, sem display)
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import precision_recall_curve, auc
+
+    y_true = np.asarray(y_true)
+    scores = np.asarray(scores)
+
+    precisions, recalls, thresholds = precision_recall_curve(y_true, scores)
+    pr_auc = auc(recalls, precisions)
+
+    # precision_recall_curve devolve um ponto a mais que thresholds (o ponto
+    # final, sem corte associado) — descartamos esse último ponto de
+    # precisions/recalls para casar o comprimento com thresholds.
+    f1_scores = np.divide(
+        2 * precisions[:-1] * recalls[:-1],
+        precisions[:-1] + recalls[:-1],
+        out=np.zeros_like(precisions[:-1]),
+        where=(precisions[:-1] + recalls[:-1]) > 0,
+    )
+    idx_melhor_f1 = int(np.argmax(f1_scores)) if len(f1_scores) else None
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+
+    # (a) Curva Precision-Recall
+    ax1.plot(recalls, precisions, color="#238636", linewidth=2)
+    ax1.set_xlabel("Recall")
+    ax1.set_ylabel("Precision")
+    ax1.set_title(f"Curva Precision-Recall (PR-AUC = {pr_auc:.4f})")
+    ax1.set_xlim(-0.02, 1.02)
+    ax1.set_ylim(-0.02, 1.02)
+    ax1.grid(alpha=0.3)
+
+    # (b) Sensibilidade ao threshold
+    ax2.plot(thresholds, precisions[:-1], label="Precision", color="#58a6ff")
+    ax2.plot(thresholds, recalls[:-1], label="Recall", color="#d29922")
+    ax2.plot(thresholds, f1_scores, label="F1-Score", color="#238636")
+    if idx_melhor_f1 is not None:
+        ax2.axvline(
+            thresholds[idx_melhor_f1], color="gray", linestyle=":",
+            label=f"Melhor F1 possível ({f1_scores[idx_melhor_f1]:.3f})"
+        )
+    if threshold_usado is not None:
+        ax2.axvline(
+            threshold_usado, color="#d62728", linestyle="--",
+            label=f"{label_threshold_usado} ({threshold_usado:.4f})"
+        )
+    ax2.set_xlabel("Threshold de decisão (quanto maior, mais anômalo)")
+    ax2.set_ylabel("Pontuação")
+    ax2.set_title("Sensibilidade ao Threshold")
+    ax2.set_ylim(-0.02, 1.05)
+    ax2.legend(fontsize=8, loc="best")
+    ax2.grid(alpha=0.3)
+
+    fig.suptitle(titulo)
+    fig.tight_layout()
+
+    if caminho_saida:
+        pasta = os.path.dirname(caminho_saida)
+        if pasta:
+            os.makedirs(pasta, exist_ok=True)
+        fig.savefig(caminho_saida, dpi=150)
+        print(f"   -> {caminho_saida} (PR-AUC={pr_auc:.4f})")
+
+    plt.close(fig)
+    return fig

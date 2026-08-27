@@ -1,0 +1,78 @@
+{
+  "Total_Incidentes": 1,
+  "MTTD_Segundos": 651654802.4979,
+  "MTTI_Segundos": 0.0,
+  "F1_Score": 0.0039,
+  "PR_AUC": 0.1161,
+  "Precision": 0.0286,
+  "Recall": 0.0021,
+  "Metricas_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "PR_AUC": 0.11608621833159155,
+      "Precision": 0.02857142857142857,
+      "Recall": 0.00211864406779661,
+      "F1_Score": 0.0039447731755424065
+    }
+  ],
+  "Silhouette_Score": -0.0089,
+  "Taxa_Contaminacao_Media_Calculada": 0.009883,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "Taxa_Contaminacao_Usada": 0.009883,
+      "Calculo_Automatico": null
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, com validação cruzada temporal quando o lote é grande o bastante — Iglewicz & Hoaglin 1993)",
+  "Motor_Versao": "v7",
+  "Selecao_Automatica_Algoritmo_Ativa": false,
+  "Validacao_Cruzada_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "iforest": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.009883108498926627,
+            "contaminacao_por_dobra": [
+              0.01171875,
+              0.005,
+              0.005359212050984936,
+              0.00847457627118644,
+              0.018863004172461752
+            ],
+            "f1_media": 0.0010767160161507402,
+            "f1_desvio": 0.0021534320323014803,
+            "f1_por_dobra": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.005383580080753701
+            ]
+          }
+        },
+        "tem_rotulo": true,
+        "melhor_algoritmo": "iforest",
+        "contaminacao_recomendada": 0.009883108498926627,
+        "degenerada": true,
+        "motivo_degeneracao": "F1 médio da CV para 'iforest' ficou em 0.0011 (< 0.05) — modelo não está separando anomalia de normal de forma confiável neste lote"
+      }
+    }
+  ],
+  "Fallback_Modelo_Por_Fonte": [
+    {
+      "Fonte": "logs_filtrados",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "iforest",
+      "Motivo": "F1 médio da CV para 'iforest' ficou em 0.0011 (< 0.05) — modelo não está separando anomalia de normal de forma confiável neste lote"
+    }
+  ],
+  "Timestamp_Lote": "2026-08-26 20:38:18",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_filtrados"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "Total_Incidentes": 1,
+  "MTTD_Segundos": 790.132,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.6605,
+  "Timestamp_Lote": "2026-08-25 12:56:00",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_appficticio"
+  ]
+}

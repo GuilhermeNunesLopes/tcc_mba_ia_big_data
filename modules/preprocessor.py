@@ -127,22 +127,39 @@ def tfidf_vectorize(df, vectorizer=None):
         " EVENT_" + df_clean["Event_Clean"].astype(str)
     )
 
-    # 4. Treino ou Teste do Vectorizer
+        # 4. Treino ou Teste do Vectorizer
     if vectorizer is None:
         # Modo Treino: Cria e ajusta aos dados
         vectorizer = TfidfVectorizer(
             ngram_range=(1, 1),  # Apenas unigramas
-            #ngram_range=(1, 2),  # Unigramas e bigramas
-            min_df=1,           
-            max_df=0.95,        
-            binary=True,        
-            use_idf=True,      
-            norm='l2'           
+            min_df=1,
+            max_df=0.95,
+            binary=True,
+            use_idf=True,
+            norm='l2',
+            stop_words='english'
         )
-        tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
+        try:
+            tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
+        except ValueError:
+            # Lotes pequenos/homogêneos (comum nos splits iniciais do
+            # walk-forward) podem ter o vocabulário inteiro removido pelo
+            # corte de max_df=0.95, já que quase todo token acaba aparecendo
+            # em quase 100% das linhas. Nesse caso, refaz sem o corte por
+            # frequência máxima em vez de derrubar o pipeline.
+            print("⚠️ TF-IDF: vocabulário vazio após pruning por max_df — refazendo sem max_df para este lote.")
+            vectorizer = TfidfVectorizer(
+                ngram_range=(1, 1),
+                min_df=1,
+                max_df=1.0,
+                binary=True,
+                use_idf=True,
+                norm='l2',
+                stop_words='english'
+            )
+            tfidf_matrix = vectorizer.fit_transform(df_clean['combined'])
 
-        density = (tfidf_matrix.nnz /(tfidf_matrix.shape[0] * tfidf_matrix.shape[1]))
-
+        density = (tfidf_matrix.nnz / (tfidf_matrix.shape[0] * tfidf_matrix.shape[1]))
         print(f"Densidade TF-IDF: {density:.4%}")
     else:
         # Modo Teste/Inferência: Apenas aplica o vocabulário já aprendido

@@ -15,7 +15,17 @@ import modules.anomaly_detector as anomaly_detector
 import modules.explainability as explainability
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import DBSCAN
+from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_score
+
+# Faixa operacional em que a taxa de contaminação calculada automaticamente
+# é travada (ver estimar_contaminacao_automatica). Sem isso, um lote quase
+# sem variação de score (MAD≈0) ou já dominado por eventos incomuns
+# devolveria 0% ou 100%, o que quebraria o treino/corte de classificação
+# a jusante.
+CONTAMINACAO_AUTO_MINIMO = 0.005
+CONTAMINACAO_AUTO_MAXIMO = 0.15
+CONTAMINACAO_AUTO_Z_THRESHOLD = 3.5
 
 COLUNAS_POSSIVEIS_LABEL = ['Label', 'label', 'Anomaly', 'anomaly', 'Is_Anomaly', 'y_true']
 
@@ -38,6 +48,68 @@ def extrair_rotulo(df):
     return df[coluna_alvo].apply(
         lambda x: 1 if str(x).strip().lower() in ['anomaly', '1', 'true', 'anômalo', 'fail'] else 0
     ).values
+
+
+def estimar_contaminacao_automatica(X_train, random_state=42, z_threshold=CONTAMINACAO_AUTO_Z_THRESHOLD,
+                                     minimo=CONTAMINACAO_AUTO_MINIMO, maximo=CONTAMINACAO_AUTO_MAXIMO):
+    """
+    Estima a taxa de contaminação (fração esperada de anomalias) direto da
+    distribuição de anomaly_score do próprio lote de treino — sem que um
+    humano precise digitar um percentual no dashboard (era o slider
+    "Alerta (%)", 0,1%-10%, valor fixo por padrão em 3,0%).
+
+    Método: fit de um Isolation Forest neutro (contamination="auto") só
+    para pontuar via score_samples() — que NÃO depende do parâmetro
+    contamination (só o corte de classificação depende disso, não o
+    ranking). Em cima desses scores, aplica-se o Modified Z-Score de
+    Iglewicz & Hoaglin (1993), baseado na Median Absolute Deviation (MAD):
+
+        M_i = 0.6745 * (score_i - mediana) / MAD
+
+    MAD é robusto (os próprios outliers não distorcem mediana/MAD tanto
+    quanto distorceriam média/desvio padrão). z_threshold=3.5 é o valor
+    recomendado por Iglewicz & Hoaglin. A fração de logs do treino com
+    M_i < -z_threshold vira a taxa de contaminação, travada em
+    [minimo, maximo] para evitar degenerar (MAD≈0, lote quase todo
+    homogêneo, etc.).
+
+    Retorna (taxa_final: float, detalhes: dict) — detalhes é guardado para
+    auditoria/explicabilidade (ver metricas_rca.json e o KPI do dashboard).
+    """
+    modelo_auxiliar = IsolationForest(n_estimators=200, contamination="auto",
+                                       random_state=random_state, n_jobs=-1)
+    modelo_auxiliar.fit(X_train)
+    scores = modelo_auxiliar.score_samples(X_train)
+
+    mediana = np.median(scores)
+    mad = np.median(np.abs(scores - mediana))
+
+    if mad == 0:
+        return minimo, {
+            "metodo": "fallback_mad_zero",
+            "motivo": "MAD dos scores é zero (lote sem variação suficiente) — usado o piso mínimo",
+            "mediana_score": float(mediana),
+            "mad_score": 0.0,
+            "z_threshold": z_threshold,
+            "limites": [minimo, maximo],
+            "n_amostras_treino": int(len(scores)),
+        }
+
+    z_scores = 0.6745 * (scores - mediana) / mad
+    fracao_atipicos = float((z_scores < -z_threshold).mean())
+    taxa_final = float(np.clip(fracao_atipicos, minimo, maximo))
+
+    detalhes = {
+        "metodo": "modified_z_score_mad",
+        "z_threshold": z_threshold,
+        "mediana_score": float(mediana),
+        "mad_score": float(mad),
+        "fracao_atipicos_bruta": fracao_atipicos,
+        "taxa_final_apos_limites": taxa_final,
+        "limites": [minimo, maximo],
+        "n_amostras_treino": int(len(scores)),
+    }
+    return taxa_final, detalhes
 
 
 def preprocessar_logs_brutos(df_logs):
@@ -131,6 +203,13 @@ def treinar_e_avaliar(df_train, df_test, taxa_contaminacao_ativa="auto",
     tfidf_test, vectorizer = feats["tfidf_test"], feats["vectorizer"]
 
     # ---- FASE 1: TREINO (100% não supervisionado) ----
+    detalhes_auto_contaminacao = None
+    if taxa_contaminacao_ativa == "auto":
+        taxa_contaminacao_ativa, detalhes_auto_contaminacao = estimar_contaminacao_automatica(X_train)
+        print(f"🧮 Taxa de contaminação calculada automaticamente: {taxa_contaminacao_ativa:.4%} "
+              f"(método: Modified Z-Score/MAD, threshold={detalhes_auto_contaminacao['z_threshold']}, "
+              f"{detalhes_auto_contaminacao['n_amostras_treino']} logs de treino)")
+
     percentil_corte = taxa_contaminacao_ativa * 100 if isinstance(taxa_contaminacao_ativa, (int, float)) else 3
 
     _, modelo_treinado, _, _, threshold_treinado = anomaly_detector.process_log_anomalies(
@@ -143,6 +222,17 @@ def treinar_e_avaliar(df_train, df_test, taxa_contaminacao_ativa="auto",
     )
 
     # ---- FASE 2: INFERÊNCIA (threshold congelado do treino) ----
+    # BUG CORRIGIDO: esta chamada não repassava anomaly_percentile=percentil_corte.
+    # Quando não há rótulo (modo ao vivo, y_true=None em ambas as fases),
+    # threshold_treinado também é None (o grid search de optimize_isolation_forest
+    # só roda com rótulo disponível) — então process_log_anomalies cai no ramo
+    # `else: limiar_estatistico = np.percentile(decision_scores, anomaly_percentile)`,
+    # e sem o argumento aqui, `anomaly_percentile` usava o valor padrão da
+    # assinatura da função (3), IGNORANDO taxa_contaminacao_ativa por completo —
+    # fosse ela o valor manual do slider ou, agora, o valor calculado
+    # automaticamente. Isso ficava mascarado porque o padrão antigo do slider
+    # (3,0%) coincidia com esse "3" hardcoded; qualquer valor diferente de 3%
+    # nunca chegava a influenciar a classificação real.
     y_verdadeiro = extrair_rotulo(df_test)  # só para medir, nunca para decidir
 
     df_resultado, _, metricas_ml, _, _ = anomaly_detector.process_log_anomalies(
@@ -151,6 +241,7 @@ def treinar_e_avaliar(df_train, df_test, taxa_contaminacao_ativa="auto",
         y_true=y_verdadeiro,
         model=modelo_treinado,
         best_threshold=threshold_treinado,
+        anomaly_percentile=percentil_corte,
         algorithm=algoritmo_ativo
     )
 
@@ -173,6 +264,8 @@ def treinar_e_avaliar(df_train, df_test, taxa_contaminacao_ativa="auto",
         "vectorizer": vectorizer,
         "y_verdadeiro": y_verdadeiro,
         "score_silhueta": None,
+        "taxa_contaminacao_usada": taxa_contaminacao_ativa,
+        "detalhes_contaminacao_automatica": detalhes_auto_contaminacao,
     }
 
     # ---- AGRUPAMENTO RCA (DBSCAN) — opcional ----
