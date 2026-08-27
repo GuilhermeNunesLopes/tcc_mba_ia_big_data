@@ -128,4 +128,5 @@ docker/meus_logs
 *.metadata
 minikube/k8s-chaos/logs
 
+experimento/_hdfs_chunks_tmp
 _hdfs_chunks_tmp

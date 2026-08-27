@@ -1,0 +1,83 @@
+{
+  "splits": [
+    {
+      "PR_AUC": 0.002434533970356616,
+      "Precision": 0.00018468357547402119,
+      "Recall": 0.023622047244094488,
+      "F1_Score": 0.0003665017408832692,
+      "split": 1,
+      "n_treino": 99975,
+      "n_teste": 99973
+    },
+    {
+      "PR_AUC": 0.9530911884213594,
+      "Precision": 0.9567875830442707,
+      "Recall": 0.21157871471846276,
+      "F1_Score": 0.34652811788003324,
+      "split": 2,
+      "n_treino": 199948,
+      "n_teste": 99973
+    },
+    {
+      "PR_AUC": 0.88809148171323,
+      "Precision": 0.8419580419580419,
+      "Recall": 0.1364166091160221,
+      "F1_Score": 0.2347915718703279,
+      "split": 3,
+      "n_treino": 299921,
+      "n_teste": 99973
+    },
+    {
+      "PR_AUC": 0.37089371487605516,
+      "Precision": 0.47787996127783156,
+      "Recall": 0.2863399071925754,
+      "F1_Score": 0.35810663764961914,
+      "split": 4,
+      "n_treino": 399894,
+      "n_teste": 99973
+    }
+  ],
+  "resumo": {
+    "F1_Score": {
+      "media": 0.23494820728521587,
+      "desvio_padrao": 0.14374167500146937,
+      "min": 0.0003665017408832692,
+      "max": 0.35810663764961914
+    },
+    "Precision": {
+      "media": 0.5692025674639046,
+      "desvio_padrao": 0.37307467876902295,
+      "min": 0.00018468357547402119,
+      "max": 0.9567875830442707
+    },
+    "Recall": {
+      "media": 0.16448931956778867,
+      "desvio_padrao": 0.09707811587091694,
+      "min": 0.023622047244094488,
+      "max": 0.2863399071925754
+    },
+    "PR_AUC": {
+      "media": 0.5536277297452503,
+      "desvio_padrao": 0.39007778565842904,
+      "min": 0.002434533970356616,
+      "max": 0.9530911884213594
+    }
+  },
+  "config": {
+    "algoritmo": "iforest",
+    "reducao": "pca",
+    "n_splits": 4,
+    "test_size": 0.2,
+    "taxa_contaminacao": "auto"
+  },
+  "resumo_parse_drain3": [
+    {
+      "arquivo": "F:\\Guilherme\\MBA Documentos\\tcc_mba_ia_big_data\\logpai\\BGL\\BGL500k.log",
+      "fonte": "BGL500k_walkforward_eval",
+      "linhas_arquivo_bruto": 500000,
+      "linhas_processadas": 500000,
+      "templates_unicos": 54,
+      "reducao_pct": 99.99
+    }
+  ]
+}

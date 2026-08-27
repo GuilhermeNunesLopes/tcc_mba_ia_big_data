@@ -17,4 +17,7 @@
 17 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo iforest --reducao svd --n-splits 20 --test-size 0.04
 18 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo ocsvm  --reducao pca --n-splits 20 --test-size 0.04
 19 - python avaliacao_walkforward.py --pastas logpai/BGL --algoritmo ocsvm  --reducao svd --n-splits 20 --test-size 0.04
-
+20 - python avaliacao_walkforwardv2.py  --algoritmo iforest --reducao pca --n-splits 4 --test-size 0.2
+21 - python avaliacao_walkforwardv2.py  --algoritmo iforest --reducao svd --n-splits 4 --test-size 0.2
+22 - python avaliacao_walkforwardv2.py  --algoritmo ocsvm  --reducao pca --n-splits 4 --test-size 0.2
+23 - python avaliacao_walkforwardv2.py  --algoritmo ocsvm  --reducao svd --n-splits 4 --test-size 0.2

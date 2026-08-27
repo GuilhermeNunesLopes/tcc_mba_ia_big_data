@@ -34,9 +34,9 @@ import pipeline as pipeline
 # inteira (que também pegaria os .csv de structured/templates que ficam
 # junto dos .log em logpai\BGL), a lista é explícita e fixa.
 ARQUIVOS_LOG_PADRAO = [
-    os.path.join("logpai", "BGL", "BGL200k.log"),
+   # os.path.join("logpai", "BGL", "BGL200k.log"),
     os.path.join("logpai", "BGL", "BGL500k.log"),
-    os.path.join("logpai", "BGL", "BGL900k.log"),
+   # os.path.join("logpai", "BGL", "BGL900k.log"),
 ]
 
 
