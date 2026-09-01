@@ -1,0 +1,92 @@
+{
+  "Total_Incidentes": 14,
+  "MTTD_Segundos": 17475.3844,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.4469,
+  "Taxa_Contaminacao_Media_Calculada": 0.084634,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.084552,
+      "Calculo_Automatico": null
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.084715,
+      "Calculo_Automatico": null
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, com validação cruzada temporal quando o lote é grande o bastante — Iglewicz & Hoaglin 1993)",
+  "Motor_Versao": "v7",
+  "Selecao_Automatica_Algoritmo_Ativa": false,
+  "Validacao_Cruzada_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "iforest": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.08455241271487529,
+            "contaminacao_por_dobra": [
+              0.15,
+              0.09360406091370559,
+              0.1164365014893041,
+              0.031684777089468874,
+              0.031036724081897952
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.08455241271487529,
+        "degenerada": false,
+        "motivo_degeneracao": null
+      }
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "iforest": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.0847149165875155,
+            "contaminacao_por_dobra": [
+              0.006554472984942427,
+              0.026178242381289865,
+              0.12376705451538599,
+              0.15,
+              0.11707481305595917
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.0847149165875155,
+        "degenerada": false,
+        "motivo_degeneracao": null
+      }
+    }
+  ],
+  "Fallback_Modelo_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "iforest",
+      "Motivo": null
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "iforest",
+      "Motivo": null
+    }
+  ],
+  "Timestamp_Lote": "2026-08-29 18:04:51",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_appficticio",
+    "logs_appficticio"
+  ]
+}

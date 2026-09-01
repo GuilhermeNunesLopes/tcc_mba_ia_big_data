@@ -1,0 +1,92 @@
+{
+  "Total_Incidentes": 16,
+  "MTTD_Segundos": 20536.7261,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.5048,
+  "Taxa_Contaminacao_Media_Calculada": 0.100601,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.099234,
+      "Calculo_Automatico": null
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.101968,
+      "Calculo_Automatico": null
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, com validação cruzada temporal quando o lote é grande o bastante — Iglewicz & Hoaglin 1993)",
+  "Motor_Versao": "v7",
+  "Selecao_Automatica_Algoritmo_Ativa": false,
+  "Validacao_Cruzada_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "iforest": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.09923421588594705,
+            "contaminacao_por_dobra": [
+              0.15,
+              0.1185336048879837,
+              0.14012219959266803,
+              0.06120162932790224,
+              0.026313645621181263
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.09923421588594705,
+        "degenerada": false,
+        "motivo_degeneracao": null
+      }
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "iforest": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.10196785908843291,
+            "contaminacao_por_dobra": [
+              0.005,
+              0.09306337388777919,
+              0.1143998547303432,
+              0.15,
+              0.14737606682404214
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.10196785908843291,
+        "degenerada": false,
+        "motivo_degeneracao": null
+      }
+    }
+  ],
+  "Fallback_Modelo_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "iforest",
+      "Motivo": null
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "iforest",
+      "Motivo": null
+    }
+  ],
+  "Timestamp_Lote": "2026-08-29 17:55:53",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_appficticio",
+    "logs_appficticio"
+  ]
+}

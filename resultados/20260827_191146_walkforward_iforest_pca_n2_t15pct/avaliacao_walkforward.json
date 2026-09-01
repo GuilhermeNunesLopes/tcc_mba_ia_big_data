@@ -1,0 +1,65 @@
+{
+  "splits": [
+    {
+      "PR_AUC": 0.39604922453333624,
+      "Precision": 0.005747126436781609,
+      "Recall": 0.001443001443001443,
+      "F1_Score": 0.002306805074971165,
+      "split": 1,
+      "n_treino": 12079,
+      "n_teste": 2588
+    },
+    {
+      "PR_AUC": 0.4837816060949891,
+      "Precision": 0.7034313725490197,
+      "Recall": 0.6080508474576272,
+      "F1_Score": 0.6522727272727272,
+      "split": 2,
+      "n_treino": 14667,
+      "n_teste": 2588
+    }
+  ],
+  "resumo": {
+    "F1_Score": {
+      "media": 0.3272897661738492,
+      "desvio_padrao": 0.32498296109887803,
+      "min": 0.002306805074971165,
+      "max": 0.6522727272727272
+    },
+    "Precision": {
+      "media": 0.35458924949290066,
+      "desvio_padrao": 0.348842123056119,
+      "min": 0.005747126436781609,
+      "max": 0.7034313725490197
+    },
+    "Recall": {
+      "media": 0.3047469244503143,
+      "desvio_padrao": 0.30330392300731285,
+      "min": 0.001443001443001443,
+      "max": 0.6080508474576272
+    },
+    "PR_AUC": {
+      "media": 0.43991541531416267,
+      "desvio_padrao": 0.04386619078082643,
+      "min": 0.39604922453333624,
+      "max": 0.4837816060949891
+    }
+  },
+  "config": {
+    "algoritmo": "iforest",
+    "reducao": "pca",
+    "n_splits": 2,
+    "test_size": 0.15,
+    "taxa_contaminacao": "auto"
+  },
+  "resumo_parse_drain3": [
+    {
+      "arquivo": "/sessions/rcw-019k2w3auwxyqbtptzkfo7ih/tmp/tmp0fpdos5z",
+      "fonte": "logs_filtrados_walkforward_eval",
+      "linhas_arquivo_bruto": 17258,
+      "linhas_processadas": 17258,
+      "templates_unicos": 41,
+      "reducao_pct": 99.76
+    }
+  ]
+}

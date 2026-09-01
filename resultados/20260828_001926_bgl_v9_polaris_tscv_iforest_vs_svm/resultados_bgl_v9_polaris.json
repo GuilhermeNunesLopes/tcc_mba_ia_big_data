@@ -1,0 +1,34 @@
+{
+    "SVD_50": {
+        "iForest_F1_Medio": 0.19701822937845584,
+        "SVM_F1_Medio": 0.23207860168009856
+    },
+    "SVD_60": {
+        "iForest_F1_Medio": 0.17164181623178593,
+        "SVM_F1_Medio": 0.12847746906289742
+    },
+    "SVD_80": {
+        "iForest_F1_Medio": 0.19144383276439286,
+        "SVM_F1_Medio": 0.13845757384862176
+    },
+    "SVD_100": {
+        "iForest_F1_Medio": 0.20063145183615938,
+        "SVM_F1_Medio": 0.14412224868727058
+    },
+    "SVD_120": {
+        "iForest_F1_Medio": 0.21785726342997766,
+        "SVM_F1_Medio": 0.14979173525996126
+    },
+    "SVD_150": {
+        "iForest_F1_Medio": 0.210825060809763,
+        "SVM_F1_Medio": 0.1584504119525485
+    },
+    "resumo_parse_drain3": {
+        "arquivo": "C:\\Users\\GNL-PC\\AppData\\Local\\Temp\\tmpoqm6qn3b.log",
+        "fonte": "BGL_Eval_v9_isolado",
+        "linhas_arquivo_bruto": 900000,
+        "linhas_processadas": 900000,
+        "templates_unicos": 219,
+        "reducao_pct": 99.98
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "SVD_15": {
+        "iForest_F1_Medio": 0.02668972479316809,
+        "SVM_F1_Medio": 0.028227135112009204
+    },
+    "SVD_30": {
+        "iForest_F1_Medio": 0.005766359282982812,
+        "SVM_F1_Medio": 0.030367948757096076
+    },
+    "SVD_50": {
+        "iForest_F1_Medio": 0.01700254236772989,
+        "SVM_F1_Medio": 0.04440071163917587
+    },
+    "resumo_parse_drain3": {
+        "arquivo": "C:\\Users\\GNL-PC\\AppData\\Local\\Temp\\tmp6_vxzfmp.log",
+        "fonte": "BGL_Eval_v9_isolado",
+        "linhas_arquivo_bruto": 200000,
+        "linhas_processadas": 200000,
+        "templates_unicos": 130,
+        "reducao_pct": 99.94
+    }
+}

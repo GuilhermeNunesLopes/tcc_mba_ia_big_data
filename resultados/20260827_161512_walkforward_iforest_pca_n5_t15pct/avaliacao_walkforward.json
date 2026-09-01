@@ -1,0 +1,92 @@
+{
+  "splits": [
+    {
+      "PR_AUC": 0.5,
+      "Precision": 0.0,
+      "Recall": 0.0,
+      "F1_Score": 0.0,
+      "split": 1,
+      "n_treino": 4315,
+      "n_teste": 2588
+    },
+    {
+      "PR_AUC": 0.5,
+      "Precision": 0.0,
+      "Recall": 0.0,
+      "F1_Score": 0.0,
+      "split": 2,
+      "n_treino": 6903,
+      "n_teste": 2588
+    },
+    {
+      "PR_AUC": 0.04646584604013636,
+      "Precision": 0.03333333333333333,
+      "Recall": 0.16666666666666666,
+      "F1_Score": 0.05555555555555555,
+      "split": 3,
+      "n_treino": 9491,
+      "n_teste": 2588
+    },
+    {
+      "PR_AUC": 0.39604922453333624,
+      "Precision": 0.005747126436781609,
+      "Recall": 0.001443001443001443,
+      "F1_Score": 0.002306805074971165,
+      "split": 4,
+      "n_treino": 12079,
+      "n_teste": 2588
+    },
+    {
+      "PR_AUC": 0.4837816060949891,
+      "Precision": 0.7034313725490197,
+      "Recall": 0.6080508474576272,
+      "F1_Score": 0.6522727272727272,
+      "split": 5,
+      "n_treino": 14667,
+      "n_teste": 2588
+    }
+  ],
+  "resumo": {
+    "F1_Score": {
+      "media": 0.14202701758065078,
+      "desvio_padrao": 0.25600511058659337,
+      "min": 0.0,
+      "max": 0.6522727272727272
+    },
+    "Precision": {
+      "media": 0.14850236646382692,
+      "desvio_padrao": 0.27773911220165065,
+      "min": 0.0,
+      "max": 0.7034313725490197
+    },
+    "Recall": {
+      "media": 0.15523210311345906,
+      "desvio_padrao": 0.2353808250218114,
+      "min": 0.0,
+      "max": 0.6080508474576272
+    },
+    "PR_AUC": {
+      "media": 0.38525933533369233,
+      "desvio_padrao": 0.17374402331518504,
+      "min": 0.04646584604013636,
+      "max": 0.5
+    }
+  },
+  "config": {
+    "algoritmo": "iforest",
+    "reducao": "pca",
+    "n_splits": 5,
+    "test_size": 0.15,
+    "taxa_contaminacao": "auto"
+  },
+  "resumo_parse_drain3": [
+    {
+      "arquivo": "/sessions/rcw-019k2w3auwxyqbtptzkfo7ih/tmp/tmp9msyrj3s",
+      "fonte": "logs_filtrados_walkforward_eval",
+      "linhas_arquivo_bruto": 17258,
+      "linhas_processadas": 17258,
+      "templates_unicos": 41,
+      "reducao_pct": 99.76
+    }
+  ]
+}

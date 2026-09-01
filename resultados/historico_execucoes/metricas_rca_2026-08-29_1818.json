@@ -1,0 +1,88 @@
+{
+  "Total_Incidentes": 3,
+  "MTTD_Segundos": 5300.8511,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.8404,
+  "Taxa_Contaminacao_Media_Calculada": 0.077535,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.077868,
+      "Calculo_Automatico": null
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.077201,
+      "Calculo_Automatico": null
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, com validação cruzada temporal quando o lote é grande o bastante — Iglewicz & Hoaglin 1993)",
+  "Motor_Versao": "v7",
+  "Selecao_Automatica_Algoritmo_Ativa": false,
+  "Validacao_Cruzada_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "ocsvm": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.07786788722575637,
+            "contaminacao_por_dobra": [
+              0.15,
+              0.06441841680129241,
+              0.09251279288984648,
+              0.030606060606060605,
+              0.05180216583158235
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.07786788722575637,
+        "degenerada": false,
+        "motivo_degeneracao": null
+      }
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "ocsvm": {
+            "n_dobras_validas": 1,
+            "contaminacao_media": 0.005,
+            "contaminacao_por_dobra": [
+              0.005
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.005,
+        "degenerada": true,
+        "motivo_degeneracao": "1/1 dobras bateram no piso/teto de contaminação (0.5%/15.0%) — lote provavelmente sem variação suficiente (quase tudo igual, ou quase tudo incomum)"
+      }
+    }
+  ],
+  "Fallback_Modelo_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "ocsvm",
+      "Motivo": null
+    },
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": true,
+      "Algoritmo_Usado": "ocsvm",
+      "Motivo": "1/1 dobras bateram no piso/teto de contaminação (0.5%/15.0%) — lote provavelmente sem variação suficiente (quase tudo igual, ou quase tudo incomum)"
+    }
+  ],
+  "Timestamp_Lote": "2026-08-29 18:18:59",
+  "Tecnica_Reducao": "PCA",
+  "Fontes_Processadas": [
+    "logs_appficticio",
+    "logs_appficticio"
+  ]
+}

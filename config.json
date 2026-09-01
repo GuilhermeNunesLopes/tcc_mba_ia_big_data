@@ -1,1 +1,1 @@
-{"pastas": ["minikube/k8s-chaos/logs_appficticio"], "taxa_contaminacao": "auto", "algoritmo": "iforest", "reducao": "svd"}
+{"pastas": ["docker/logs_appficticio", "minikube/k8s-chaos/logs_appficticio"], "taxa_contaminacao": "auto", "algoritmo": "iforest", "reducao": "pca"}

@@ -2,7 +2,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import networkx as nx
 from pyvis.network import Network
-import plotly.figure_factory as ff
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import textwrap
@@ -234,19 +233,27 @@ def generate_interactive_network(df, output_path="temp_graph.html"):
 def plot_confusion_matrix_plotly(cm):
     """Gera uma Matriz de Confusão interativa e elegante."""
     # Inverte a matriz apenas para o visual ficar no padrão acadêmico
-    z = cm[::-1] 
+    z = cm[::-1]
     x = ['Predito: Normal', 'Predito: Anomalia']
     y = ['Real: Anomalia', 'Real: Normal']
-    
-    # Criar o Heatmap (Mapa de calor)
-    fig = ff.create_annotated_heatmap(
-        z, x=x, y=y, 
-        colorscale='Blues', 
-        showscale=True
-    )
-    
+
+    # Criar o Heatmap (Mapa de calor).
+    # CORREÇÃO (27/08/2026): ff.create_annotated_heatmap() foi removida do
+    # plotly >= 6 (AttributeError). Substituído por go.Heatmap com as mesmas
+    # anotações de texto centralizadas em cada célula, geradas manualmente
+    # via text/texttemplate — resultado visual equivalente, sem depender da
+    # função removida.
+    fig = go.Figure(data=go.Heatmap(
+        z=z, x=x, y=y,
+        colorscale='Blues',
+        showscale=True,
+        text=z,
+        texttemplate='%{text}',
+        textfont={"size": 16},
+    ))
+
     fig.update_layout(
-        title_text='Matriz de Confusão', 
+        title_text='Matriz de Confusão',
         title_x=0.5,
         margin=dict(t=50, l=20, r=20, b=20)
     )

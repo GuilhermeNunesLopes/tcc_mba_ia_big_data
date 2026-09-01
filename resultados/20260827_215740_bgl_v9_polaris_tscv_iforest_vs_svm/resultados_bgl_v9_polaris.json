@@ -1,0 +1,22 @@
+{
+    "SVD_15": {
+        "iForest_F1_Medio": 0.03510808620129014,
+        "SVM_F1_Medio": 0.035193759025132186
+    },
+    "SVD_30": {
+        "iForest_F1_Medio": 0.025115989451733454,
+        "SVM_F1_Medio": 0.058829269634648206
+    },
+    "SVD_50": {
+        "iForest_F1_Medio": 0.03879717636827785,
+        "SVM_F1_Medio": 0.06447094184701603
+    },
+    "resumo_parse_drain3": {
+        "arquivo": "C:\\Users\\GNL-PC\\AppData\\Local\\Temp\\tmpezwu5hqt.log",
+        "fonte": "BGL_Eval_v9_isolado",
+        "linhas_arquivo_bruto": 200000,
+        "linhas_processadas": 200000,
+        "templates_unicos": 130,
+        "reducao_pct": 99.94
+    }
+}

@@ -1,0 +1,56 @@
+{
+  "Total_Incidentes": 5,
+  "MTTD_Segundos": 341119.1193,
+  "MTTI_Segundos": 0.0,
+  "Silhouette_Score": 0.5456,
+  "Taxa_Contaminacao_Media_Calculada": 0.048663,
+  "Contaminacao_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Taxa_Contaminacao_Usada": 0.048663,
+      "Calculo_Automatico": null
+    }
+  ],
+  "Metodo_Calculo_Alerta": "auto (Modified Z-Score/MAD sobre IsolationForest.score_samples, com validação cruzada temporal quando o lote é grande o bastante — Iglewicz & Hoaglin 1993)",
+  "Motor_Versao": "v7",
+  "Selecao_Automatica_Algoritmo_Ativa": false,
+  "Validacao_Cruzada_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Relatorio": {
+        "n_splits": 5,
+        "por_algoritmo": {
+          "iforest": {
+            "n_dobras_validas": 5,
+            "contaminacao_media": 0.04866250416250416,
+            "contaminacao_por_dobra": [
+              0.005,
+              0.005,
+              0.04104229104229104,
+              0.0856018981018981,
+              0.10666833166833167
+            ]
+          }
+        },
+        "tem_rotulo": false,
+        "melhor_algoritmo": null,
+        "contaminacao_recomendada": 0.04866250416250416,
+        "degenerada": false,
+        "motivo_degeneracao": null
+      }
+    }
+  ],
+  "Fallback_Modelo_Por_Fonte": [
+    {
+      "Fonte": "logs_appficticio",
+      "Fallback_Usado": false,
+      "Algoritmo_Usado": "iforest",
+      "Motivo": null
+    }
+  ],
+  "Timestamp_Lote": "2026-08-29 16:15:14",
+  "Tecnica_Reducao": "SVD",
+  "Fontes_Processadas": [
+    "logs_appficticio"
+  ]
+}

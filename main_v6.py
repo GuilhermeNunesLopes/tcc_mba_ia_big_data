@@ -197,13 +197,30 @@ def processar_logs_em_lote():
             clusters_reais = clusters_reais[clusters_reais != -1].unique()
 
             for cid in clusters_reais:
-                incident_id = f"{lote_id}_{os.path.basename(pasta)}_cluster{int(cid)}"
+                # Chave da fonte pelo CAMINHO COMPLETO, nao pelo nome final:
+                # pastas configuradas podem ter o mesmo basename (ex.:
+                # 'docker/logs_appficticio' e
+                # 'minikube/k8s-chaos/logs_appficticio' -> ambas dao
+                # 'logs_appficticio'). Com o basename, incidentes de fontes
+                # distintas que recebiam o mesmo numero de cluster colidiam na
+                # mesma chave do rastreador: o registro posterior sobrescrevia
+                # o anterior, subcontando Total_Incidentes e contaminando
+                # t0/t1 (e portanto MTTD/MTTI).
+                chave_fonte = pasta.replace(os.sep, "_").replace("/", "_")
+                incident_id = f"{lote_id}_{chave_fonte}_cluster{int(cid)}"
                 linhas_cluster = df_resultado[df_resultado['cluster_id'] == cid]
                 t0_real = linhas_cluster['Timestamp'].min().timestamp()
 
+                # T2 (isolamento) NAO e marcado aqui. A correlacao topologica
+                # em grafo, que e o que a Metodologia define como isolamento
+                # ("as etapas de agrupamento e correlacao processam a anomalia,
+                # relacionam os eventos e indicam sua possivel causa raiz"), so
+                # acontece depois que TODAS as fontes do lote foram
+                # consolidadas. Marcar t2 aqui, na instrucao seguinte a
+                # mark_detected(), fazia t2 - t1 ser da ordem de microssegundos
+                # e o MTTI resultar invariavelmente em 0,0 s.
                 tracker.start_injection(incident_id, t0=t0_real)
                 tracker.mark_detected(incident_id)
-                tracker.mark_isolated(incident_id)
                 incidentes_do_lote.append(incident_id)
 
         resultados_por_fonte.append(df_resultado)
@@ -215,9 +232,11 @@ def processar_logs_em_lote():
         return
 
     if not incidentes_do_lote:
+        # Mesmo motivo do bloco acima: t2 deste incidente-placeholder passa a
+        # ser marcado junto com os demais, apos a correlacao do lote.
         tracker.start_injection(lote_id)
         tracker.mark_detected(lote_id)
-        tracker.mark_isolated(lote_id)
+        incidentes_do_lote.append(lote_id)
 
     # Junta os resultados de todas as fontes e limpa nulos
     df_resultado = pd.concat(resultados_por_fonte, ignore_index=True)
@@ -233,6 +252,17 @@ def processar_logs_em_lote():
           f"({len(incidentes_do_lote) or 1} incidente(s) rastreado(s) neste lote).")
 
     # Consolidação das Métricas
+    # ---- T2 (ISOLAMENTO) DE TODOS OS INCIDENTES DO LOTE ----
+    # Marcado neste ponto, e nao dentro do laco por fonte, porque e aqui que
+    # a correlacao topologica do lote fica efetivamente disponivel. Assim
+    # t2 - t1 passa a medir um intervalo real (deteccao -> correlacao), em vez
+    # do zero estrutural que a marcacao consecutiva produzia.
+    # Ressalva conhecida: para a primeira fonte processada, esse intervalo
+    # inclui o tempo de processamento das fontes seguintes do mesmo lote --
+    # propriedade inerente a um pipeline em lote, nao um erro de medicao.
+    for _incident_id in incidentes_do_lote:
+        tracker.mark_isolated(_incident_id)
+
     resultados_metricas = tracker.calculate_results()
     tracker.clear_batch()
 

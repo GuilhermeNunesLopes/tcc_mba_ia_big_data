@@ -1,0 +1,65 @@
+{
+  "splits": [
+    {
+      "PR_AUC": 0.1302678021212504,
+      "Precision": 0.14893617021276595,
+      "Recall": 0.875,
+      "F1_Score": 0.2545454545454545,
+      "split": 1,
+      "n_treino": 1399,
+      "n_teste": 299
+    },
+    {
+      "PR_AUC": 0.10560932012261201,
+      "Precision": 0.12727272727272726,
+      "Recall": 0.2916666666666667,
+      "F1_Score": 0.17721518987341772,
+      "split": 2,
+      "n_treino": 1698,
+      "n_teste": 299
+    }
+  ],
+  "resumo": {
+    "F1_Score": {
+      "media": 0.21588032220943612,
+      "desvio_padrao": 0.0386651323360184,
+      "min": 0.17721518987341772,
+      "max": 0.2545454545454545
+    },
+    "Precision": {
+      "media": 0.1381044487427466,
+      "desvio_padrao": 0.010831721470019345,
+      "min": 0.12727272727272726,
+      "max": 0.14893617021276595
+    },
+    "Recall": {
+      "media": 0.5833333333333334,
+      "desvio_padrao": 0.2916666666666667,
+      "min": 0.2916666666666667,
+      "max": 0.875
+    },
+    "PR_AUC": {
+      "media": 0.1179385611219312,
+      "desvio_padrao": 0.012329240999319188,
+      "min": 0.10560932012261201,
+      "max": 0.1302678021212504
+    }
+  },
+  "config": {
+    "algoritmo": "iforest",
+    "reducao": "pca",
+    "n_splits": 2,
+    "test_size": 0.15,
+    "taxa_contaminacao": "auto"
+  },
+  "resumo_parse_drain3": [
+    {
+      "arquivo": "/sessions/rcw-019k2w3auwxyqbtptzkfo7ih/mnt/tcc_mba_ia_big_data/logpai/BGL/BGL_2k.log",
+      "fonte": "BGL_2k_walkforward_eval",
+      "linhas_arquivo_bruto": 2000,
+      "linhas_processadas": 2000,
+      "templates_unicos": 70,
+      "reducao_pct": 96.5
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "splits": [
+    {
+      "PR_AUC": 0.29133500658659905,
+      "Precision": 0.10215053763440861,
+      "Recall": 0.027417027417027416,
+      "F1_Score": 0.04323094425483504,
+      "split": 1,
+      "n_treino": 12079,
+      "n_teste": 2588
+    },
+    {
+      "PR_AUC": 0.11486739113693971,
+      "Precision": 0.02313624678663239,
+      "Recall": 0.019067796610169493,
+      "F1_Score": 0.020905923344947737,
+      "split": 2,
+      "n_treino": 14667,
+      "n_teste": 2588
+    }
+  ],
+  "resumo": {
+    "F1_Score": {
+      "media": 0.03206843379989139,
+      "desvio_padrao": 0.011162510454943653,
+      "min": 0.020905923344947737,
+      "max": 0.04323094425483504
+    },
+    "Precision": {
+      "media": 0.0626433922105205,
+      "desvio_padrao": 0.03950714542388811,
+      "min": 0.02313624678663239,
+      "max": 0.10215053763440861
+    },
+    "Recall": {
+      "media": 0.023242412013598453,
+      "desvio_padrao": 0.004174615403428962,
+      "min": 0.019067796610169493,
+      "max": 0.027417027417027416
+    },
+    "PR_AUC": {
+      "media": 0.2031011988617694,
+      "desvio_padrao": 0.08823380772482968,
+      "min": 0.11486739113693971,
+      "max": 0.29133500658659905
+    }
+  },
+  "config": {
+    "algoritmo": "ocsvm",
+    "reducao": "pca",
+    "n_splits": 2,
+    "test_size": 0.15,
+    "taxa_contaminacao": "auto"
+  },
+  "resumo_parse_drain3": [
+    {
+      "arquivo": "/sessions/rcw-019k2w3auwxyqbtptzkfo7ih/tmp/tmp7u7uowew",
+      "fonte": "logs_filtrados_walkforward_eval",
+      "linhas_arquivo_bruto": 17258,
+      "linhas_processadas": 17258,
+      "templates_unicos": 41,
+      "reducao_pct": 99.76
+    }
+  ]
+}

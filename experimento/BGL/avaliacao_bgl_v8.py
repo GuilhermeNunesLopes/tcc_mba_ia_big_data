@@ -30,16 +30,24 @@ import modules.parse_system as parse_system
 import modules.anomaly_detector as anomaly_detector
 import modules.run_output as run_output
 
-CAMINHO_BGL = os.path.join("logpai", "BGL", "BGL.log")
+# Arquivos disponíveis para esta avaliação. O BGL.log bruto completo
+# (~4,7 milhões de linhas) foi removido das opções: nos folds finais do
+# TimeSeriesSplit o treino cresceria até abranger quase esse total, e o
+# OneClassSVM (libsvm) tem custo mais que quadrático no número de amostras
+# (mesmo problema já documentado/corrigido em experimento_pipeline_svm.py,
+# achado 3.5 da Validação de Resultados v2) — inviável em tempo hábil sem
+# amostragem agressiva. Escolha o tamanho via --dataset.
+CAMINHOS_BGL = {
+    "200k": os.path.join("logpai", "BGL", "BGL200k.log"),
+    "500k": os.path.join("logpai", "BGL", "BGL500k.log"),
+    "900k": os.path.join("logpai", "BGL", "BGL900k.log"),
+}
+CAMINHO_BGL = CAMINHOS_BGL["200k"]
+
 SVD_COMPONENTS = [15, 30, 50]
 
-# BGL.log é o dataset bruto completo (~4,7 milhões de linhas) — nos folds
-# finais do TimeSeriesSplit o treino cresce até abranger quase esse total.
-# O OneClassSVM (libsvm) tem custo mais que quadrático no número de amostras
-# (mesmo problema já documentado/corrigido em experimento_pipeline_svm.py,
-# achado 3.5 da Validação de Resultados v2) — sem limite, o treino do OCSVM
-# em folds grandes não terminaria em tempo hábil. O Isolation Forest não tem
-# essa limitação e continua treinando no fold inteiro.
+# O Isolation Forest não tem a limitação de custo do OCSVM e continua
+# treinando no fold inteiro.
 LIMITE_AMOSTRA_OCSVM = 20000
 
 def carregar_bgl_rotulado(caminho: str = CAMINHO_BGL, limite_linhas: int = None, resumo_saida=None) -> pd.DataFrame:
@@ -109,7 +117,7 @@ def carregar_bgl_rotulado(caminho: str = CAMINHO_BGL, limite_linhas: int = None,
     if len(df_parsed) != len(df):
         raise ValueError(f"Divergência no parser: Original={len(df)} linhas vs Parsed={len(df_parsed)} linhas.")
 
-    print(f"   -> Linhas brutas lidas do BGL.log: {len(df)}")
+    print(f"   -> Linhas brutas lidas de {caminho}: {len(df)}")
     print(f"   -> Linhas após parse via Drain3:   {len(df_parsed)}")
 
     # 3. CONVERSÃO DE DATAS
@@ -136,18 +144,21 @@ def carregar_bgl_rotulado(caminho: str = CAMINHO_BGL, limite_linhas: int = None,
 
     return df_padronizado
 
-def main(limite_linhas=None):
+def main(limite_linhas=None, dataset="200k"):
     print("=" * 62)
     print("AVALIAÇÃO CIENTÍFICA — Pipeline de Detecção de Anomalias")
     print("Abordagem: Time Series Split + TF-IDF + SVD + iForest vs SVM")
     print("=" * 62)
+    print(f"Dataset selecionado: {dataset} ({CAMINHOS_BGL[dataset]})")
 
     # resumo_parse é preenchido em memória por carregar_bgl_rotulado() (via
     # automatic_drain_parse, ver modules/parse_system.py) com o resumo
     # antes/depois do parse Drain3 (linhas brutas -> templates únicos) — para
     # salvar junto do resultado desta execução, não só imprimir no console.
     resumo_parse = {}
-    df_bruto = carregar_bgl_rotulado(limite_linhas=limite_linhas, resumo_saida=resumo_parse)
+    df_bruto = carregar_bgl_rotulado(
+        caminho=CAMINHOS_BGL[dataset], limite_linhas=limite_linhas, resumo_saida=resumo_parse,
+    )
 
     print("\nCalculando features temporais (Log Burst e Time Diff)...")
     df_bruto['time_diff'] = df_bruto['Timestamp'].diff().dt.total_seconds().fillna(0)
@@ -257,9 +268,12 @@ def main(limite_linhas=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Avaliação BGL (TimeSeriesSplit + iForest vs OCSVM).")
+    parser.add_argument("--dataset", type=str, default="200k", choices=list(CAMINHOS_BGL.keys()),
+                         help="Qual arquivo BGL usar (padrão: 200k). O BGL.log completo (~4,7M linhas) "
+                              "não é uma opção aqui — ver LIMITE_AMOSTRA_OCSVM.")
     parser.add_argument("--limite-linhas", type=int, default=None,
-                         help="Limita a leitura do BGL.log às N primeiras linhas (teste rápido). "
+                         help="Limita a leitura do arquivo às N primeiras linhas (teste rápido). "
                               "Padrão: None (lê o arquivo inteiro).")
     args = parser.parse_args()
 
-    main(limite_linhas=args.limite_linhas)
+    main(limite_linhas=args.limite_linhas, dataset=args.dataset)

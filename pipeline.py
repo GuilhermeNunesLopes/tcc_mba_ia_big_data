@@ -163,6 +163,9 @@ def preparar_features(df_train, df_test, reducao_ativa="pca", n_components=100):
 
     if reducao_ativa.lower() == "svd":
         red_train, red_model = preprocessor.apply_truncated_svd(tfidf_train, svd_model=None, n_components=n_components)
+    elif reducao_ativa.lower() in ("nenhuma", "none"):
+        # Sem redução de dimensionalidade: usa o TF-IDF completo (denso).
+        red_train, red_model = tfidf_train.toarray(), None
     else:
         red_train, red_model = preprocessor.apply_pca(tfidf_train, pca_model=None, n_components=n_components)
 
@@ -173,6 +176,8 @@ def preparar_features(df_train, df_test, reducao_ativa="pca", n_components=100):
     tfidf_test, _ = preprocessor.tfidf_vectorize(df_test, vectorizer=vectorizer)
     if reducao_ativa.lower() == "svd":
         red_test, _ = preprocessor.apply_truncated_svd(tfidf_test, svd_model=red_model)
+    elif reducao_ativa.lower() in ("nenhuma", "none"):
+        red_test = tfidf_test.toarray()
     else:
         red_test, _ = preprocessor.apply_pca(tfidf_test, pca_model=red_model)
 

@@ -333,7 +333,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-splits", type=int, default=5, help="Número de splits cronológicos (padrão: 5).")
     parser.add_argument("--test-size", type=float, default=0.15, help="Fração de cada janela de teste (padrão: 0.15).")
     parser.add_argument("--algoritmo", type=str, default=None, choices=["iforest", "ocsvm"])
-    parser.add_argument("--reducao", type=str, default=None, choices=["pca", "svd"])
+    parser.add_argument("--reducao", type=str, default=None, choices=["pca", "svd", "nenhuma"])
     parser.add_argument("--contaminacao", type=str, default=None,
                          help="Taxa de contaminação (ex.: 0.03) ou 'auto'.")
 
