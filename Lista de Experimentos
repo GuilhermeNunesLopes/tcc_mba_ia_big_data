@@ -21,3 +21,19 @@
 21 - python avaliacao_walkforwardv2.py  --algoritmo iforest --reducao svd --n-splits 4 --test-size 0.2
 22 - python avaliacao_walkforwardv2.py  --algoritmo ocsvm  --reducao pca --n-splits 4 --test-size 0.2
 23 - python avaliacao_walkforwardv2.py  --algoritmo ocsvm  --reducao svd --n-splits 4 --test-size 0.2
+
+# 1) IForest + PCA
+python -c "import json; c=json.load(open('config.json')); c.update(algoritmo='iforest', reducao='pca', taxa_contaminacao='auto'); json.dump(c, open('config.json','w'))"
+python -c "import main_v7; main_v7.processar_logs_em_lote()"
+
+# 2) IForest + SVD
+python -c "import json; c=json.load(open('config.json')); c.update(algoritmo='iforest', reducao='svd'); json.dump(c, open('config.json','w'))"
+python -c "import main_v7; main_v7.processar_logs_em_lote()"
+
+# 3) One-Class SVM + PCA
+python -c "import json; c=json.load(open('config.json')); c.update(algoritmo='ocsvm', reducao='pca'); json.dump(c, open('config.json','w'))"
+python -c "import main_v7; main_v7.processar_logs_em_lote()"
+
+# 4) One-Class SVM + SVD
+python -c "import json; c=json.load(open('config.json')); c.update(algoritmo='ocsvm', reducao='svd'); json.dump(c, open('config.json','w'))"
+python -c "import main_v7; main_v7.processar_logs_em_lote()"
